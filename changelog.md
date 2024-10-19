@@ -158,7 +158,9 @@
   - Fixed HTML links are not displayed in posts.
 - Fixed a filter reset of the product grid does not work correctly.
 - Fixed validation issues when saving guest customers.
-- #1066 Web API: fixed schema validation errors for `MaxLength` attribute and OpenAPI `OperationId`.
+- Web API:
+  - #1066 Fixed schema validation errors for `MaxLength` attribute and OpenAPI `OperationId`.
+  - #1186 Missing order in GET request if customer was deleted.
 - #1072 Missing customer welcome message after approval of the registration by admin.
 - #897 Discount code input seems to be confirmed (border color and check icon)
 - #964 Removed meta information from publication according to catalog settings.
@@ -195,6 +197,8 @@
 - GMC:
   - Fixed missing product edit URL in product grid.
   - Fixed Google category cannot be cleared in product grid.
+- Fixed `SqlException` "String or binary data would be truncated" when generating URL slugs that are too long.
+- Fixed orders of deleted customers were not displayed in order grid.
 
 
 ## Smartstore 5.1.0

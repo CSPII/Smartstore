@@ -539,7 +539,7 @@ namespace Smartstore.Core.Data.Migrations
 
             builder.AddOrUpdate("Admin.AI.TextCreation.DefaultPrompt", "Generate text about the topic '{0}'.", "Erzeuge Text zum Thema '{0}'.");
             builder.AddOrUpdate("Admin.AI.ImageCreation.DefaultPrompt", "Generate a picture about the topic: '{0}'.", "Erzeuge ein Bild zum Thema: '{0}'.");
-            builder.AddOrUpdate("Admin.AI.Suggestions.DefaultPrompt", "Make suggestions about the topic: '{0}'.", "Mache Vorschläge zum Thema '{0}'.");
+            builder.AddOrUpdate("Admin.AI.Suggestions.DefaultPrompt", "Make a suggestion about the topic: '{0}'.", "Mache einen Vorschlag zum Thema '{0}'.");
 
             builder.AddOrUpdate("Admin.AI.MenuItemTitle.ChangeStyle", "Change style", "Sprachstil ändern");
             builder.AddOrUpdate("Admin.AI.MenuItemTitle.ChangeTone", "Change tone", "Ton ändern");
@@ -550,18 +550,12 @@ namespace Smartstore.Core.Data.Migrations
             builder.AddOrUpdate("Smartstore.AI.Prompts.DontUseMarkdown",
                 "Do not use markdown formatting.",
                 "Verwende keine Markdown-Formatierungen.");
-            builder.AddOrUpdate("Smartstore.AI.Prompts.DontNumberSuggestions",
-                "Do not number the suggestions.",
-                "Nummeriere die Vorschläge nicht.");
-            builder.AddOrUpdate("Smartstore.AI.Prompts.CharLimitSuggestions",
-                "Maximum {0} characters per suggestion.",
-                "Maximal {0} Zeichen pro Vorschlag.");
-            builder.AddOrUpdate("Smartstore.AI.Prompts.SeparateWithNumberSign",
-                "Always separate each suggestion with the # sign.",
-                "Trenne jeden Vorschlag zwingend mit dem #-Zeichen.");
+            builder.AddOrUpdate("Smartstore.AI.Prompts.DontUseLineBreaks",
+                "Do not use line breaks.",
+                "Verwende keine Zeilenumbrüche.");
             builder.AddOrUpdate("Smartstore.AI.Prompts.CharLimit",
-                "Limit your answer to {0} characters!",
-                "Begrenze deine Antwort auf {0} Zeichen!");
+                "Each answer should have a maximum of {0} characters!",
+                "Jede Antwort soll maximal {0} Zeichen haben!");
             builder.AddOrUpdate("Smartstore.AI.Prompts.WordLimit",
                 "The text may contain a maximum of {0} words.",
                 "Der Text darf maximal {0} Wörter enthalten.");
@@ -588,9 +582,9 @@ namespace Smartstore.Core.Data.Migrations
                 " Der Titel erhält ein {1}-Tag." +
                 " Verlinke die einzelnen Punkte des Inhaltsverzeichnisses mit den jeweiligen Überschriften der Absätze.");
             builder.AddOrUpdate("Smartstore.AI.Prompts.IncludeImages",
-                "After each paragraph, add another p-tag with the style specification 'width:450px', which contains an i-tag with the CSS classes 'far fa-xl fa-file-image ai-preview-file'." +
+                "After each paragraph, add another p-tag, which contains an i-tag with the CSS classes 'far fa-xl fa-file-image ai-preview-file'." +
                 " The title attribute of the i-tag should be the heading of the respective paragraph.",
-                "Füge nach jedem Absatz ein weiteres p-Tag mit der style-Angabe 'width:450px' ein, das ein i-Tag mit den CSS-Klassen 'far fa-xl fa-file-image ai-preview-file' enthält." +
+                "Füge nach jedem Absatz ein weiteres p-Tag ein, das ein i-Tag mit den CSS-Klassen 'far fa-xl fa-file-image ai-preview-file' enthält." +
                 " Das title-Attribut des i-Tags soll die Überschrift des jeweiligen Absatzes sein.");
             builder.AddOrUpdate("Smartstore.AI.Prompts.NoIntroImage",
                 "The intro does not receive a picture.",
@@ -681,6 +675,13 @@ namespace Smartstore.Core.Data.Migrations
             builder.AddOrUpdate("Smartstore.AI.Prompts.Role.ProductExpert",
                 "Be an expert for the product: '{0}'.",
                 "Sei ein Experte für das Produkt: '{0}'.");
+
+            builder.AddOrUpdate("Smartstore.AI.Prompts.PreserveHtmlStructure",
+                "Be sure to preserve the HTML structure.",
+                "Erhalte unbedingt die HTML-Struktur.");
+            builder.AddOrUpdate("Smartstore.AI.Prompts.ProcessHtmlElementsIndividually",
+                "Process each HTML element individually.",
+                "Betrachte dabei jedes HTML-Element einzeln.");
         }
     }
 }

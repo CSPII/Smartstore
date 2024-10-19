@@ -111,7 +111,7 @@ namespace Smartstore.Web.Rendering
 
             string[] additionalItemClasses = ["ai-translator"];
             var dialogUrl = GetDialogUrl(AIChatTopic.Translation);
-            var inputGroupColDiv = CreateDialogOpener(true);
+            var inputGroupColDiv = CreateDialogOpener(true, title: GetOpenerTitle(AIChatTopic.Translation));
 
             var dropdownUl = new TagBuilder("ul");
             dropdownUl.Attributes["class"] = "dropdown-menu dropdown-menu-right ai-translator-menu";
@@ -145,6 +145,12 @@ namespace Smartstore.Web.Rendering
         }
 
         public virtual TagBuilder GenerateTextCreationTool(AttributeDictionary attributes, bool enabled = true)
+            => GenerateTextToolOutput(attributes, AIChatTopic.Text, enabled);
+
+        public virtual TagBuilder GenerateRichTextTool(AttributeDictionary attributes, bool enabled = true)    
+            => GenerateTextToolOutput(attributes, AIChatTopic.RichText, enabled);
+    
+        protected virtual TagBuilder GenerateTextToolOutput(AttributeDictionary attributes, AIChatTopic topic, bool enabled = true)
         {
             CheckContextualized();
 
@@ -154,8 +160,8 @@ namespace Smartstore.Web.Rendering
                 return null;
             }
 
-            var inputGroupColDiv = CreateDialogOpener(true);
-            inputGroupColDiv.Attributes["data-modal-url"] = GetDialogUrl(AIChatTopic.Text);
+            var inputGroupColDiv = CreateDialogOpener(true, title: GetOpenerTitle(AIChatTopic.Text));
+            inputGroupColDiv.Attributes["data-modal-url"] = GetDialogUrl(topic);
             inputGroupColDiv.MergeAttributes(attributes);
 
             var dropdownUl = new TagBuilder("ul");
@@ -177,8 +183,8 @@ namespace Smartstore.Web.Rendering
             builder.AppendHtml("<div class=\"dropdown-divider\"></div>");
 
             // Add "Change style" & "Change tone" options from module settings.
-            var styleDropdown = AddMenuItemsFromSetting(enabled, "change-style", className);
-            var toneDropdown = AddMenuItemsFromSetting(enabled, "change-tone", className);
+            var styleDropdown = AddMenuItemsFromSetting(enabled, "change-style", className, "vector-pen");
+            var toneDropdown = AddMenuItemsFromSetting(enabled, "change-tone", className, "emoji-wink");
 
             if (styleDropdown != null || toneDropdown != null)
             {
@@ -188,7 +194,7 @@ namespace Smartstore.Web.Rendering
             }
 
             builder.AppendHtml(CreateDropdownItem(T($"{resRoot}Summarize"), enabled, "summarize", "highlighter", false, className));
-            builder.AppendHtml(CreateDropdownItem(T($"{resRoot}Improve"), enabled, "improve", "suitcase-lg", false, className));
+            builder.AppendHtml(CreateDropdownItem(T($"{resRoot}Improve"), enabled, "improve", "lightbulb", false, className));
             builder.AppendHtml(CreateDropdownItem(T($"{resRoot}Simplify"), enabled, "simplify", "text-left", false, className));
             builder.AppendHtml(CreateDropdownItem(T($"{resRoot}Extend"), enabled, "extend", "body-text", false, className));
 
@@ -222,14 +228,19 @@ namespace Smartstore.Web.Rendering
             }
 
             var optionsList = new TagBuilder("ul");
-            optionsList.Attributes["class"] = "dropdown-menu dropdown-menu-right";
+            optionsList.Attributes["class"] = "dropdown-menu dropdown-menu-slide dropdown-menu-right";
 
             foreach (var option in options)
             {
-                optionsList.InnerHtml.AppendHtml(CreateDropdownItem(option, enabled, command, iconName, false, additionalClasses));
+                optionsList.InnerHtml.AppendHtml(CreateDropdownItem(option, enabled, command, null, false, additionalClasses));
             }
 
-            var subDropdown = CreateDropdownItem(T(command == "change-style" ? "Admin.AI.MenuItemTitle.ChangeStyle" : "Admin.AI.MenuItemTitle.ChangeTone"));
+            var subDropdown = CreateDropdownItem(
+                T(command == "change-style" ? "Admin.AI.MenuItemTitle.ChangeStyle" : "Admin.AI.MenuItemTitle.ChangeTone"), 
+                true,
+                string.Empty, 
+                iconName,
+                false);
             subDropdown.Attributes["class"] = "dropdown-group";
             subDropdown.InnerHtml.AppendHtml(optionsList);
 
@@ -242,9 +253,6 @@ namespace Smartstore.Web.Rendering
         public virtual TagBuilder GenerateImageCreationTool(AttributeDictionary attributes)
             => GenerateOutput(attributes, AIProviderFeatures.ImageCreation, AIChatTopic.Image);
 
-        public virtual TagBuilder GenerateRichTextTool(AttributeDictionary attributes)
-            => GenerateOutput(attributes, AIProviderFeatures.TextCreation, AIChatTopic.RichText);
-
         /// <summary>
         /// Generates the output for the AI dialog openers.
         /// </summary>
@@ -252,7 +260,7 @@ namespace Smartstore.Web.Rendering
         /// <param name="feature">The <see cref="AIProviderFeatures"/> to be supported for the AI tool.</param>
         /// <param name="topic">The <see cref="AIChatTopic"/> of the AI tool.</param>
         /// <returns>
-        /// The tagbuilder for the AI dialog opener.
+        /// The TagBuilder for the AI dialog opener.
         /// </returns>
         protected virtual TagBuilder GenerateOutput(AttributeDictionary attributes, AIProviderFeatures feature, AIChatTopic topic)
         {
@@ -264,29 +272,7 @@ namespace Smartstore.Web.Rendering
                 return null;
             }
 
-            var additionalClasses = GetDialogIdentifierClass(topic);
-            var dropdownLiTitle = string.Empty;
-
-            switch (topic)
-            {
-                case AIChatTopic.Text:
-                case AIChatTopic.RichText:
-                    dropdownLiTitle = T("Admin.AI.CreateText");
-                    break;
-                case AIChatTopic.Image:
-                    dropdownLiTitle = T("Admin.AI.CreateImage");
-                    break;
-                case AIChatTopic.Translation:
-                    dropdownLiTitle = T("Admin.AI.TranslateText");
-                    break;
-                case AIChatTopic.Suggestion:
-                    dropdownLiTitle = T("Admin.AI.MakeSuggestion");
-                    break;
-                default:
-                    throw new AIException($"Unknown chat topic {topic}.");
-            }
-
-            var openerDiv = CreateDialogOpener(false, additionalClasses, dropdownLiTitle);
+            var openerDiv = CreateDialogOpener(false, GetDialogIdentifierClass(topic), GetOpenerTitle(topic));
             openerDiv.Attributes["data-modal-url"] = GetDialogUrl(topic);
             openerDiv.MergeAttributes(attributes);
 
@@ -334,17 +320,14 @@ namespace Smartstore.Web.Rendering
             var btnTag = new TagBuilder("a");
             btnTag.Attributes["href"] = "javascript:;";
             btnTag.Attributes["class"] = "btn btn-clear-dark btn-no-border btn-sm btn-icon rounded-circle input-group-icon ai-dialog-opener no-chevron";
+            btnTag.Attributes["title"] = title;
             btnTag.AppendCssClass(isDropdown ? "dropdown-toggle" : additionalClasses);
 
             if (isDropdown)
             {
                 btnTag.Attributes["data-toggle"] = "dropdown";
             }
-            else
-            {
-                btnTag.Attributes["title"] = title;
-            }
-
+            
             btnTag.InnerHtml.AppendHtml(icon);
 
             return btnTag;
@@ -385,6 +368,27 @@ namespace Smartstore.Web.Rendering
                     return "ai-translator";
                 case AIChatTopic.Suggestion:
                     return "ai-suggestion";
+                default:
+                    throw new AIException($"Unknown chat topic {topic}.");
+            }
+        }
+
+        /// <summary>
+        /// Gets the title of the dialog opener element.
+        /// </summary>
+        private string GetOpenerTitle(AIChatTopic topic)
+        {
+            switch (topic)
+            {
+                case AIChatTopic.Text:
+                case AIChatTopic.RichText:
+                    return T("Admin.AI.CreateText");
+                case AIChatTopic.Translation:
+                    return T("Admin.AI.TranslateText");
+                case AIChatTopic.Image:
+                    return T("Admin.AI.CreateImage");
+                case AIChatTopic.Suggestion:
+                    return T("Admin.AI.MakeSuggestion");
                 default:
                     throw new AIException($"Unknown chat topic {topic}.");
             }
