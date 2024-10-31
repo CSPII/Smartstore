@@ -148,6 +148,7 @@
 - Fixed the reward points for purchases setting was not saved in multi-store mode.
 - #960 Setting `ManufacturerItemsToDisplayInOffcanvasMenu` cannot be changed in backend.
 - Fixed offcanvas cart issue in mobile browsers (buttons in the footer were sometimes truncated).
+- #1197 Product grid search form does not parse the search term expression.
 - Page Builder:
   - Some radio button groups were not deselectable
   - Story min-height (medium | tall) often resulted in broken page layout
