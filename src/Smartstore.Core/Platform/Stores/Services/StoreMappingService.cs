@@ -2,6 +2,7 @@
 using Smartstore.Caching;
 using Smartstore.Core.Data;
 using Smartstore.Data.Hooks;
+using System;
 
 namespace Smartstore.Core.Stores
 {
@@ -57,6 +58,8 @@ namespace Smartstore.Core.Stores
         public virtual async Task<bool> ApplyStoreMappingsAsync<T>(T entity, int[] selectedStoreIds)
             where T : BaseEntity, IStoreRestricted
         {
+            Guard.NotNull(entity);
+            Guard.NotZero(entity.Id);
             var customerAuthorizedStores = await GetCustomerAuthorizedStoreIdsAsync();
             selectedStoreIds ??= (!_workContext.CurrentCustomer.IsSuperAdmin() ? customerAuthorizedStores : Array.Empty<int>());
             if (!_workContext.CurrentCustomer.IsSuperAdmin() && customerAuthorizedStores.Length > 0 && selectedStoreIds.Any(ssId => !customerAuthorizedStores.Any(cas => ssId == cas)))
