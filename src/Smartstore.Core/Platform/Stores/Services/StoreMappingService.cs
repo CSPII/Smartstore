@@ -58,7 +58,7 @@ namespace Smartstore.Core.Stores
             where T : BaseEntity, IStoreRestricted
         {
             var customerAuthorizedStores = await GetCustomerAuthorizedStoreIdsAsync();
-            selectedStoreIds ??= (!_workContext.CurrentCustomer.IsSuperAdmin() ? customerAuthorizedStores : []) ;
+            selectedStoreIds ??= (!_workContext.CurrentCustomer.IsSuperAdmin() ? customerAuthorizedStores : Array.Empty<int>());
             if (!_workContext.CurrentCustomer.IsSuperAdmin() && customerAuthorizedStores.Length > 0 && selectedStoreIds.Any(ssId => !customerAuthorizedStores.Any(cas => ssId == cas)))
             {
                 //Trying to select a store not in the list of authorized stores of the customer making this change
