@@ -108,7 +108,7 @@ namespace Smartstore.Admin.Controllers
                 {
                     Id = "0",
                     Text = label,
-                    Selected = false
+                    Selected = ids.Contains(0)
                 });
             }
 

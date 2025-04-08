@@ -217,7 +217,8 @@
                     <smart-label asp-for="Locales[item].FullDescription" />
 			    </div>
                 <div class="adminData wide">
-                    <editor asp-for="Locales[item].FullDescription" />
+                    <html-editor asp-for="Locales[item].FullDescription" 
+                                 save-url="@(Url.PatchLocalizedEntity<Product>(nameof(Product.FullDescription), Model.Id, Model.Locales[item].LanguageId))" />
                     <span asp-validation-for="Locales[item].FullDescription"></span>
                 </div>
 		    </div>
@@ -254,7 +255,7 @@
 			    </div>
                 <div class="adminData wide">
                     <ai-rich-text asp-for="FullDescription" entity-name="@Model.Name" entity-type="Product">
-                        <editor asp-for="FullDescription" />
+                        <html-editor asp-for="FullDescription" save-url="@(Url.PatchEntity<Product>(nameof(Product.FullDescription), Model.Id))" />
                     </ai-rich-text>
                     <span asp-validation-for="FullDescription"></span>
                 </div>
@@ -298,6 +299,15 @@
         <div class="adminData">
             <input asp-for="CustomsTariffNumber" />
             <span asp-validation-for="CustomsTariffNumber"></span>
+        </div>
+    </div>
+    <div class="adminRow">
+        <div class="adminTitle">
+            <smart-label asp-for="DisplayOrder" />
+        </div>
+        <div class="adminData">
+            <editor asp-for="DisplayOrder" />
+            <span asp-validation-for="DisplayOrder"></span>
         </div>
     </div>
     <div class="adminRow">
@@ -501,7 +511,7 @@
                 <smart-label asp-for="RecurringCycleLength" />
             </div>
             <div class="adminData">
-                <input asp-for="RecurringCycleLength" />
+                <editor asp-for="RecurringCycleLength" />
                 <span asp-validation-for="RecurringCycleLength"></span>
             </div>
         </div>
@@ -519,7 +529,7 @@
                 <smart-label asp-for="RecurringTotalCycles" />
             </div>
             <div class="adminData">
-                <input asp-for="RecurringTotalCycles" />
+                <editor asp-for="RecurringTotalCycles" />
                 <span asp-validation-for="RecurringTotalCycles"></span>
             </div>
         </div>

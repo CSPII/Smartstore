@@ -59,7 +59,7 @@ namespace Smartstore.Web.Controllers
         }
 
         [CheckStoreClosed(false)]
-        [Route("browserconfig.xml")]
+        [Route("browserconfig.xml"), CrawlerEndpoint]
         public async Task<IActionResult> BrowserConfigXmlFile()
         {
             var store = Services.StoreContext.CurrentStore;
@@ -95,7 +95,7 @@ namespace Smartstore.Web.Controllers
         }
 
         [CheckStoreClosed(false)]
-        [Route("robots.txt")]
+        [Route("robots.txt"), CrawlerEndpoint]
         public async Task<IActionResult> RobotsTextFile()
         {
             #region DisallowPaths
@@ -266,7 +266,7 @@ namespace Smartstore.Web.Controllers
         }
 
         [HttpPost]
-        public IActionResult SetCookieManagerConsent(CookieManagerModel model)
+        public async Task<IActionResult> SetCookieManagerConsent(CookieManagerModel model)
         {
             if (model.AcceptAll)
             {
@@ -279,7 +279,7 @@ namespace Smartstore.Web.Controllers
 
             // Info: We don't pass the required value from model.RequiredConsent because the control is disabled and the value is always false
             // but required cookies are always allowed. However, we need to set the consent explicitly because we can't even set required cookies without consent.
-            _cookieConsentManager.SetConsentCookie(true, model.AnalyticsConsent, model.ThirdPartyConsent, model.AdUserDataConsent, model.AdPersonalizationConsent);
+            await _cookieConsentManager.SetConsentCookieAsync(true, model.AnalyticsConsent, model.ThirdPartyConsent, model.AdUserDataConsent, model.AdPersonalizationConsent);
 
             if (!HttpContext.Request.IsAjax())
             {

@@ -57,6 +57,53 @@ namespace Smartstore.Core.AI.Prompting
             => P("ProcessHtmlElementsIndividually");
 
         /// <summary>
+        /// Instruction to use last span of submitted HTML structure for continue writing.
+        /// </summary>
+        /// <returns>
+        /// AI instruction: Use last span for continue writing.
+        /// </returns>
+        public virtual string PreserveOriginalText()
+            => P("PreserveOriginalText");
+
+        /// <summary>
+        /// Instruction to return the generated text only.
+        /// </summary>
+        /// <returns>
+        /// AI instruction: Only return the text you have written in your answer.
+        /// </returns>
+        public virtual string ReturnNewTextOnly()
+            => P("ReturnNewTextOnly");
+
+        /// <summary>
+        /// Instruction to add the new text for continue writing to the last span tag.
+        /// </summary>
+        /// <returns>
+        /// AI instruction: Be sure to append the new mark-up to the last span tag. Ignore any concerns, e.g. whether it is valid HTML.
+        /// </returns>
+        public virtual string AppendToLastSpan()
+            => P("AppendToLastSpan");
+
+        /// <summary>
+        /// Instruction to use last span of submitted HTML structure for continue writing.
+        /// </summary>
+        /// <returns>
+        /// AI instruction: Replace the placeholder [CURSORPOSITION] with your continued text. Leave the rest of the text unchanged.
+        /// If the placeholder is in a block-level element, only add text to complete this paragraph.
+        /// If the [CURSORPOSITION] placeholder is not found, continue at the end of the text.
+        /// </returns>
+        public virtual string ContinueAtPlaceholder()
+            => P("ContinueAtPlaceholder");
+
+        /// <summary>
+        /// Instruction to wrap the new text with a mark tag.
+        /// </summary>
+        /// <returns>
+        /// AI instruction: Wrap newly created text with the tag <ai-highlight class='mark' />.
+        /// </returns>
+        public virtual string WrapNewContentWithHighlightTag()
+            => P("WrapNewContentWithHighlightTag");
+
+        /// <summary>
         /// Instructs the AI to write text that does not exceed a defined number of words.
         /// </summary>
         /// <returns>
@@ -73,6 +120,15 @@ namespace Smartstore.Core.AI.Prompting
         /// </returns>
         public virtual string CharLimit(int charLimit)
             => P("CharLimit", charLimit);
+
+        /// <summary>
+        /// Instructs the AI to write text that does not exceed a defined number of characters or words.
+        /// </summary>
+        /// <returns>
+        /// AI instruction: The text may contain no more than <paramref name="charLimit"/> characters and no more than <paramref name="wordLimit"/> words.
+        /// </returns>
+        public virtual string CharWordLimit(int charLimit, int wordLimit)
+            => P("CharWordLimit", charLimit, wordLimit);
 
         /// <summary>
         /// Instructs the AI to write in a specific tone.

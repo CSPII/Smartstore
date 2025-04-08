@@ -235,7 +235,7 @@ namespace Smartstore.Core.AI.Prompting
 
             // INFO: No need for word limit in SEO properties. Because we advised the KI to be a SEO expert, it already knows the correct limits.
             return AddRoleMessage(AIRole.SEOExpert, chat)
-                .User(forPromptPart)
+                .UserTopic(forPromptPart)
                 .System(Resources.ReserveSpaceForShopName())
                 // INFO: Smartstore automatically adds inverted commas to the title.
                 .System(Resources.DontUseQuotes());
@@ -250,7 +250,7 @@ namespace Smartstore.Core.AI.Prompting
         {
             // INFO: No need for word limit in SEO properties. Because we advised the AI to be a SEO expert, it already knows the correct limits.
             return AddRoleMessage(AIRole.SEOExpert, chat)
-                .User(forPromptPart)
+                .UserTopic(forPromptPart)
                 .System(Resources.DontUseQuotes());
         }
 
@@ -263,7 +263,7 @@ namespace Smartstore.Core.AI.Prompting
         {
             // INFO: No need for word limit in SEO properties. Because we advised the KI to be a SEO expert, it already knows the correct limits.
             return AddRoleMessage(AIRole.SEOExpert, chat)
-                .User(forPromptPart)
+                .UserTopic(forPromptPart)
                 .System(Resources.SeparateListWithComma());
         }
 
@@ -274,11 +274,19 @@ namespace Smartstore.Core.AI.Prompting
         /// </summary>
         /// <param name="role">The <see cref="AIRole"/></param>
         /// <param name="chat">The <see cref="AIChat" /> containing a <see cref="List{AIChatMessage}"/> to which the generated message will be added.</param>
+        /// <param name="additionalMessages">Additional messages which must be added to the role definition.</param>
         /// <param name="entityName">The name of the entity. Currently only used to fill a placeholder for the productname when the role is <see cref="AIRole.ProductExpert"/></param>
         /// <returns>AI Instruction: e.g.: Be a SEO expert.</returns>
-        public virtual AIChat AddRoleMessage(AIRole role, AIChat chat, string entityName = "")
+        public virtual AIChat AddRoleMessage(AIRole role, AIChat chat, List<string> additionalMessages = null, string entityName = "")
         {
-            return chat.System(Resources.Role(role, entityName));
+            var message = Resources.Role(role, entityName);
+
+            if (additionalMessages != null && additionalMessages.Count > 0)
+            {
+                message += string.Join(" ", additionalMessages);
+            }
+
+            return chat.System(message);
         }
 
         /// <summary>
@@ -287,16 +295,17 @@ namespace Smartstore.Core.AI.Prompting
         /// <param name="chat">The <see cref="AIChat" /> containing a <see cref="List{AIChatMessage}"/> to which the generated messages will be added.</param>
         public virtual AIChat AddSuggestionMessages(IAISuggestionModel model, AIChat chat)
         {
-            chat.System(Resources.DontUseMarkdown())
-                .System(Resources.DontUseQuotes())
-                .System(Resources.DontUseLineBreaks());
+            chat.System(Resources.GetResource("Smartstore.AI.Prompts.Suggestions.GeneralPrompt"));
 
             if (model.CharLimit > 0)
             {
-                // INFO: the instruction should be formulated in plural (e.g. "each answer..."),
-                // as otherwise individual answers may exceed the character limit.
-                chat.System(Resources.CharLimit(model.CharLimit)).SetMetaData(model.CharLimit);
+                chat.System(Resources.GetResource("Smartstore.AI.Prompts.Suggestions.CharLimit", model.CharLimit))
+                    .SetMetaData(model.CharLimit);
             }
+
+            chat.System(Resources.DontUseMarkdown())
+                .System(Resources.DontUseQuotes())
+                .System(Resources.DontUseLineBreaks());
 
             return chat;
         }
@@ -309,17 +318,27 @@ namespace Smartstore.Core.AI.Prompting
         /// <param name="chat">The <see cref="AIChat" /> containing a <see cref="List{AIChatMessage}"/> to which the generated messages will be added.</param>
         protected virtual Task<AIChat> AddSimpleTextMessagesAsync(IAITextModel model, AIChat chat)
         {
-            chat.System(Resources.DontUseMarkdown());
+            chat.System(Resources.DontUseMarkdown())
+                .System(Resources.DontUseQuotes());
 
-            if (model.CharLimit > 0)
+            if (model.CharLimit > 0 && model.WordLimit > 0)
             {
-                chat.System(Resources.CharLimit(model.CharLimit)).SetMetaData(model.CharLimit);
+                chat.User(Resources.CharWordLimit(model.CharLimit, model.WordLimit.Value))
+                    .SetMetaData(model.CharLimit)
+                    .SetMetaData(model.WordLimit);
+            }
+            else if (model.CharLimit > 0)
+            {
+                chat.User(Resources.CharLimit(model.CharLimit))
+                    .SetMetaData(model.CharLimit);
+            }
+            else if (model.WordLimit > 0)
+            {
+                chat.User(Resources.WordLimit((int)model.WordLimit))
+                    .SetMetaData(model.WordLimit);
             }
 
-            if (model.WordLimit > 0)
-            {
-                chat.User(Resources.WordLimit((int)model.WordLimit)).SetMetaData(model.WordLimit);
-            }
+            AddKeywordsMessages(model, chat);
 
             return AddLanguageMessagesAsync(model, chat);
         }

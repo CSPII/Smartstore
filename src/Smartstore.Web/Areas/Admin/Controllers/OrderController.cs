@@ -1809,7 +1809,10 @@ namespace Smartstore.Admin.Controllers
 
             model.OrderNumber = order.GetOrderNumber();
             model.StoreName = Services.StoreContext.GetStoreById(order.StoreId)?.Name ?? StringExtensions.NotAvailable;
-            model.CustomerName = order.Customer.GetFullName().NullEmpty() ?? order.Customer.GetDisplayName(T).NaIfEmpty();
+            model.CustomerName = order.BillingAddress?.GetFullName()?.NullEmpty()
+                ?? order.ShippingAddress?.GetFullName()?.NullEmpty()
+                ?? order.Customer.GetFullName().NullEmpty() 
+                ?? order.Customer.GetDisplayName(T).NaIfEmpty();
             model.CustomerEmail = order.BillingAddress?.Email ?? order.Customer?.FindEmail();
             model.CustomerDeleted = order.Customer?.Deleted ?? true;
             model.OrderTotalString = Format(order.OrderTotal);
@@ -2167,6 +2170,19 @@ namespace Smartstore.Admin.Controllers
                 giftCardIdsMap = giftCards.ToMultimap(x => x.OrderItemId, x => x.Id);
             }
 
+            var recurringPaymentIds = new Dictionary<int, int>();
+            var rpOrderIds = order.OrderItems
+                .Where(x => x.Product.IsRecurring)
+                .ToDistinctArray(x => x.OrderId);
+            if (rpOrderIds.Length > 0)
+            {
+                recurringPaymentIds = (await _db.RecurringPayments
+                    .Where(x => rpOrderIds.Contains(x.InitialOrderId))
+                    .Select(x => new { x.Id, x.InitialOrderId })
+                    .ToListAsync())
+                    .ToDictionarySafe(x => x.InitialOrderId, x => x.Id);
+            }
+
             foreach (var item in order.OrderItems)
             {
                 var product = item.Product;
@@ -2190,8 +2206,8 @@ namespace Smartstore.Admin.Controllers
 
                 if (product.IsRecurring)
                 {
-                    var period = Services.Localization.GetLocalizedEnum(product.RecurringCyclePeriod);
-                    model.RecurringInfo = T("Admin.Orders.Products.RecurringPeriod", product.RecurringCycleLength, period);
+                    model.RecurringPaymentId = recurringPaymentIds.Get(item.OrderId);
+                    model.RecurringInfo = T("ShoppingCart.RecurringPeriod", product.RecurringCycleLength, product.RecurringCyclePeriod.GetLocalizedEnum());
                 }
 
                 if (returnRequestsMap.ContainsKey(item.Id))

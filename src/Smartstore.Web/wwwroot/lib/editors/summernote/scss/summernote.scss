@@ -7,7 +7,6 @@ $note-bg: #8080801d;
 $img-margin-left: 10px;
 $img-margin-right: 10px;
 
-
 // Wrapper & Preview
 // ------------------------------------------
 
@@ -81,6 +80,20 @@ $img-margin-right: 10px;
     &.note-airframe {
         border-width: 0;
     }
+
+    .note-editing-area {
+        flex-grow: 1;
+    }
+
+    .note-editable,
+    .note-codable,
+    .CodeMirror {
+        height: 100%;
+    }
+
+    .CodeMirror {
+        border-width: 0;
+    }
 }
 
 
@@ -101,10 +114,13 @@ $img-margin-right: 10px;
     padding: 10px;
     overflow: auto;
     word-wrap: break-word;
+    height: auto;
     // Reset
     font-weight: normal;
     font-style: normal;
     text-decoration: none;
+    --zoom: 1;
+    zoom: var(--zoom);
 
     a {
         text-decoration: underline;
@@ -155,7 +171,12 @@ $img-margin-right: 10px;
 // ------------------------------------------
 
 .note-editor.codeview {
-    .note-editable {
+    .note-editable,
+    .note-statusbar-content {
+        display: none;
+    }
+
+    &.fullscreen .note-statusbar {
         display: none;
     }
 
@@ -193,7 +214,11 @@ $img-margin-right: 10px;
     position: fixed;
     top: 0;
     left: 0;
+    bottom: 0;
     width: 100% !important;
+    height: 100% !important;
+    min-height: initial !important;
+    max-height: initial !important;
     border-radius: 0 !important;
     border-color: $note-border-color !important;
     z-index: $zindex-tooltip !important;
@@ -205,8 +230,23 @@ $img-margin-right: 10px;
         width: 100% !important;
     }
 
+    .note-editing-area {
+        flex-grow: 1;
+    }
+
+    .note-editable,
+    .note-codable,
+    .CodeMirror {
+        height: 100%;
+    }
+
     .note-resizebar {
-        display: none;
+        cursor: default;
+        pointer-events: none;
+
+        > .note-icon-bar {
+            display: none;
+        }
     }
 }
 
@@ -240,29 +280,81 @@ $img-margin-right: 10px;
 // ------------------------------------------
 
 .note-statusbar {
+    position: relative;
     background-color: $note-bg;
     border-top: 1px solid rgba($black, 0.15);
+}
 
-    .note-resizebar {
-        padding-top: 1px;
-        height: 9px;
-        width: 100%;
-        cursor: ns-resize;
+.note-statusbar-content {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    font-size: 13px;
+    padding: 8px 8px 0 8px;
+    line-height: 1;
+}
 
-        .note-icon-bar {
-            width: 20px;
-            margin: 1px auto;
-            border-top: 1px solid rgba($black, 0.2);
-        }
+.note-path-item {
+    display: inline-block;
+    cursor: pointer;
+
+    &:hover {
+        color: var(--gray-650);
+    }
+}
+
+.note-path-item-divider {
+    cursor: default;
+}
+
+.note-tag-glimpse {
+    position: absolute;
+    pointer-events: none;
+    z-index: $zindex-tooltip - 1;
+    background-color: rgba(var(--primary-rgb), 0.2);
+}
+
+.note-resizebar {
+    padding-top: 1px;
+    height: 9px;
+    width: 100%;
+    cursor: ns-resize;
+
+    > .note-icon-bar {
+        width: 20px;
+        margin: 1px auto;
+        border-top: 1px solid rgba($black, 0.2);
+    }
+}
+
+.note-zoomer {
+    margin-top: -4px;
+    margin-bottom: -4px;
+}
+
+.btn.note-zoom-action {
+    --btn-height: 20px;
+    --btn-active-shadow: none;
+    box-shadow: none !important;
+}
+
+.note-zoom-value {
+    width: 36px;
+    text-align: end;
+    user-select: none;
+}
+
+.note-statusbar.locked {
+    > .note-statusbar-content {
+        display: none;
     }
 
-    &.locked {
-        .note-resizebar {
-            cursor: default;
+    > .note-resizebar {
+        cursor: default;
 
-            .note-icon-bar {
-                display: none;
-            }
+        > .note-icon-bar {
+            display: none;
         }
     }
 }
@@ -363,7 +455,7 @@ $img-margin-right: 10px;
         margin: 0;
     }
 
-    .modal-footer > .note-btn-primary {
+    .modal-footer > .btn {
         min-width: 80px;
     }
 }
@@ -376,6 +468,7 @@ $img-margin-right: 10px;
     position: absolute;
     display: none;
     border: 1px solid #000;
+    z-index: 1;
 
     & > div {
         position: absolute;
@@ -603,10 +696,8 @@ $img-margin-right: 10px;
     }
 
     .scrollable-menu {
-        --scrollbar-track-color: #fff;
-        --scrollbar-track-hover-color: #fff;
         height: auto;
-        max-height: 340px;
+        max-height: 400px;
         min-width: 280px;
         overflow-x: hidden;
     }
@@ -645,15 +736,21 @@ $img-margin-right: 10px;
     > svg {
         height: 16px;
     }
-    // &:not(:hover) {
-    //   //transition: none !important;
-    // }
 
     &:active,
     .note-btn-group.show > & {
         --btn-active-bg: var(--primary-bg-subtle) !important;
         --btn-active-border-color: var(--note-btn-active-border-color) !important;
     }
+}
+
+.note-duotone-primary,
+.note-duotone-secondary {
+    color: var(--primary);
+}
+
+.note-duotone-secondary {
+    opacity: 0.4;
 }
 
 .btn-group-split {
@@ -762,6 +859,57 @@ $img-margin-right: 10px;
         padding: 2px;
         border-radius: 3px;
     }
+}
+
+
+// Emojis
+// ------------------------------------------
+
+.note-dropdown-emoji {
+    --note-emoji-size: 40px;
+    --note-emoji-gap: 1px;
+    --note-emoji-cols: 9;
+    --note-emoji-padding: 0.5rem;
+    overflow: hidden;
+    height: 400px;
+    width: calc(var(--note-emoji-size) * var(--note-emoji-cols) + (var(--note-emoji-gap) * var(--note-emoji-cols)) + (var(--note-emoji-padding) * 2) + 13px);
+    flex-flow: column;
+
+    &.show {
+        display: flex;
+    }
+}
+
+.note-emoji-searchbox {
+    padding-inline: var(--note-emoji-padding);
+}
+
+.note-emoji-list {
+    gap: var(--note-emoji-gap);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    margin: var(--note-emoji-padding);
+    margin-inline-end: 0;
+    padding-inline-end: var(--note-emoji-padding);
+}
+
+.nav-emoji {
+    justify-content: space-between;
+
+    > .nav-link {
+        &:not(.active) {
+            filter: grayscale(1);
+            opacity: 0.65;
+        }
+    }
+}
+
+.note-emoji {
+    font-size: 22px;
+    font-weight: var(--font-weight-normal);
+    border-width: 0;
+    --btn-active-shadow: none;
+    --btn-height: var(--note-emoji-size);
 }
 
 

@@ -25,6 +25,7 @@ using Smartstore.Engine.Modularity;
 using Smartstore.Web.Models.Common;
 using Smartstore.Web.Models.DataGrid;
 using Smartstore.Web.Rendering;
+using static Smartstore.Admin.Models.Customers.CustomerModel;
 
 namespace Smartstore.Admin.Controllers
 {
@@ -132,6 +133,7 @@ namespace Smartstore.Admin.Controllers
         private async Task PrepareCustomerModel(CustomerModel model, Customer customer)
         {
             var dtHelper = Services.DateTimeHelper;
+            var ga = customer?.GenericAttributes;
 
             MiniMapper.Map(_customerSettings, model);
 
@@ -155,7 +157,7 @@ namespace Smartstore.Admin.Controllers
                 model.IsTaxExempt = customer.IsTaxExempt;
                 model.Active = customer.Active;
                 model.TimeZoneId = customer.TimeZoneId;
-                model.VatNumber = customer.GenericAttributes.VatNumber;
+                model.VatNumber = ga.VatNumber;
                 model.AffiliateId = customer.AffiliateId;
                 model.Deleted = customer.Deleted;
                 model.Title = customer.Title;
@@ -165,14 +167,14 @@ namespace Smartstore.Admin.Controllers
                 model.Company = customer.Company;
                 model.CustomerNumber = customer.CustomerNumber;
                 model.Gender = customer.Gender;
-                model.ZipPostalCode = customer.GenericAttributes.ZipPostalCode;
-                model.CountryId = Convert.ToInt32(customer.GenericAttributes.CountryId);
-                model.StreetAddress = customer.GenericAttributes.StreetAddress;
-                model.StreetAddress2 = customer.GenericAttributes.StreetAddress2;
-                model.City = customer.GenericAttributes.City;
-                model.StateProvinceId = Convert.ToInt32(customer.GenericAttributes.StateProvinceId);
-                model.Phone = customer.GenericAttributes.Phone;
-                model.Fax = customer.GenericAttributes.Fax;
+                model.ZipPostalCode = ga.ZipPostalCode;
+                model.CountryId = ga.CountryId;
+                model.StreetAddress = ga.StreetAddress;
+                model.StreetAddress2 = ga.StreetAddress2;
+                model.City = ga.City;
+                model.StateProvinceId = ga.StateProvinceId ?? 0;
+                model.Phone = ga.Phone;
+                model.Fax = ga.Fax;
                 model.DateOfBirth = customer.BirthDate;
                 model.DisplayVatNumber = _taxSettings.EuVatEnabled;
                 model.DisplayRewardPointsHistory = _rewardPointsSettings.Enabled;
@@ -205,6 +207,16 @@ namespace Smartstore.Admin.Controllers
                     .FindByIdAsync(customer.AffiliateId, false);
 
                 model.AffiliateFullName = affiliate?.Address?.GetFullName();
+
+                var cookieConsent = ga.CookieConsent;
+                model.CookieConsent = cookieConsent != null
+                    ? await MapperFactory.MapAsync<ConsentCookie, CookieConsentModel>(cookieConsent)
+                    : new();
+
+                if (cookieConsent?.ConsentedOn != null)
+                {
+                    model.CookieConsent.ConsentOn = dtHelper.ConvertToUserTime(cookieConsent.ConsentedOn.Value, DateTimeKind.Utc);
+                }
             }
             else
             {
@@ -243,8 +255,8 @@ namespace Smartstore.Admin.Controllers
             {
                 var shippingMethods = await _shippingService.Value.GetAllShippingMethodsAsync();
                 var paymentProviders = await _paymentService.Value.LoadActivePaymentProvidersAsync();
-                var preferredShippingMethodId = customer?.GenericAttributes.PreferredShippingOption?.ShippingMethodId ?? 0;
-                var preferredPaymentMethod = customer?.GenericAttributes.PreferredPaymentMethod;
+                var preferredShippingMethodId = ga?.PreferredShippingOption?.ShippingMethodId ?? 0;
+                var preferredPaymentMethod = ga?.PreferredPaymentMethod;
 
                 ViewBag.ShippingMethods = shippingMethods
                     .Select(x => new SelectListItem
@@ -256,7 +268,6 @@ namespace Smartstore.Admin.Controllers
                     .ToList();
 
                 ViewBag.PaymentMethods = paymentProviders
-                    .Where(x => !x.Value.RequiresPaymentSelection)
                     .Select(x => x.Metadata)
                     .Select(x => new SelectListItem
                     {
@@ -436,7 +447,8 @@ namespace Smartstore.Admin.Controllers
         [Permission(Permissions.Customer.Read)]
         public async Task<IActionResult> CustomerList(GridCommand command, CustomerListModel model)
         {
-            var searchQuery = _db.Customers
+            var dtHelper = Services.DateTimeHelper;
+            var query = _db.Customers
                 .AsNoTracking()
                 .Include(x => x.BillingAddress)
                 .Include(x => x.ShippingAddress)
@@ -448,39 +460,49 @@ namespace Smartstore.Admin.Controllers
                     await Services.StoreMappingService.GetStoreMappingCollectionAsync(nameof(Customer), [.. _db.Customers.Select(x => x.Id)]))
                 .ApplySuperAdminFilter(Services.WorkContext.CurrentCustomer.IsSuperAdmin());
 
+            if (model.StartDate != null)
+            {
+                var dt = dtHelper.ConvertToUtcTime(model.StartDate.Value, dtHelper.CurrentTimeZone);
+                query = query.Where(x => x.CreatedOnUtc >= dt);
+            }
+            if (model.EndDate != null)
+            {
+                var dt = dtHelper.ConvertToUtcTime(model.EndDate.Value, dtHelper.CurrentTimeZone).AddDays(1);
+                query = query.Where(x => x.CreatedOnUtc <= dt);
+            }
+
             if (model.SearchCustomerRoleIds != null)
             {
-                searchQuery = searchQuery.ApplyRolesFilter(model.SearchCustomerRoleIds);
+                query = query.ApplyRolesFilter(model.SearchCustomerRoleIds);
             }
 
             if (model.SearchPhone.HasValue())
             {
-                searchQuery = searchQuery.ApplyPhoneFilter(model.SearchPhone);
+                query = query.ApplyPhoneFilter(model.SearchPhone);
             }
 
             if (model.SearchTerm.HasValue())
             {
-                searchQuery = searchQuery.ApplySearchTermFilter(model.SearchTerm);
+                query = query.ApplySearchTermFilter(model.SearchTerm);
             }
 
             if (model.SearchZipPostalCode.HasValue())
             {
-                searchQuery = searchQuery.ApplyZipPostalCodeFilter(model.SearchZipPostalCode);
+                query = query.ApplyZipPostalCodeFilter(model.SearchZipPostalCode);
             }
 
             if (model.SearchActiveOnly != null)
             {
-                searchQuery = searchQuery.Where(x => x.Active == model.SearchActiveOnly);
+                query = query.Where(x => x.Active == model.SearchActiveOnly);
             }
 
-            var customers = await searchQuery
+            var customers = await query
                 .OrderByDescending(x => x.CreatedOnUtc)
                 .ApplyGridCommand(command)
                 .ToPagedList(command)
                 .LoadAsync();
 
             string guestStr = T("Admin.Customers.Guest");
-            var dtHelper = Services.DateTimeHelper;
 
             var rows = customers
                 .Select(x => new CustomerModel
@@ -918,6 +940,7 @@ namespace Smartstore.Admin.Controllers
             try
             {
                 _db.Customers.Remove(customer);
+                await _db.SaveChangesAsync();
 
                 Services.ActivityLogger.LogActivity(KnownActivityLogTypes.DeleteCustomer, T("ActivityLog.DeleteCustomer", customer.Id));
                 NotifySuccess(T("Admin.Customers.Customers.Deleted"));
@@ -935,17 +958,12 @@ namespace Smartstore.Admin.Controllers
         [Permission(Permissions.Customer.Delete)]
         public async Task<IActionResult> CustomerDelete(GridSelection selection)
         {
-            var ids = selection.GetEntityIds();
-            var numDeleted = 0;
-
-            if (ids.Any())
+            var entities = await _db.Customers
+                .IncludeCustomerRoles()
+                .GetManyAsync(selection.GetEntityIds(), true);
+            if (entities.Count > 0)
             {
-                var toDelete = await _db.Customers
-                    .IncludeCustomerRoles()
-                    .Where(x => ids.Contains(x.Id))
-                    .ToListAsync();
-
-                var adminIds = toDelete
+                var adminIds = entities
                     .Where(c => c.CustomerRoleMappings.Any(rm => 
                         rm.CustomerRole.IsSystemRole && 
                         rm.CustomerRole.Active && 
@@ -956,13 +974,16 @@ namespace Smartstore.Admin.Controllers
                 if (adminIds.Count > 0)
                 {
                     // Do not delete administrators here for security reasons.
-                    toDelete = toDelete.Where(x => !adminIds.Contains(x.Id)).ToList();
+                    entities = entities.Where(x => !adminIds.Contains(x.Id)).ToList();
                 }
 
-                _db.Customers.RemoveRange(toDelete);
+                _db.Customers.RemoveRange(entities);
                 await _db.SaveChangesAsync();
 
-                numDeleted = toDelete.Count;
+                Services.ActivityLogger.LogActivity(
+                    KnownActivityLogTypes.DeleteCustomer, 
+                    T("ActivityLog.DeleteCustomer", 
+                    string.Join(", ", entities.Select(x => x.Id))));
 
                 if (adminIds.Count > 0)
                 {
@@ -970,7 +991,7 @@ namespace Smartstore.Admin.Controllers
                 }
             }
 
-            return Json(new { Success = true, Count = numDeleted });
+            return Json(new { Success = true, entities.Count });
         }
 
         [HttpPost]
