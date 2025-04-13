@@ -3,7 +3,8 @@
 @model OrderTotalsModel
 
 @{
-    var shippingLabelHtml = Model.RequiresShipping && (await Url.TopicAsync("ShippingInfo")).HasValue()
+    var shippingInfoUrl = Model.RequiresShipping ? await Url.TopicAsync("ShippingInfo", true) : string.Empty;
+    var shippingLabelHtml = shippingInfoUrl.HasValue()
         ? $"<a href='javascript:;' data-toggle='modal' data-target='#shipping-info-modal'>{T("ShoppingCart.Totals.Shipping")}</a>:"
         : $"{T("ShoppingCart.Totals.Shipping")}:";
 }
@@ -22,7 +23,7 @@
     <tr sm-if="Model.DisplayWeight" class="cart-summary-weight">
         <td class="cart-summary-label">@T("ShoppingCart.Weight"):</td>
         <td class="cart-summary-value">
-            <span>@(Model.Weight.ToString("N2"))</span>
+            <span>@(Model.Weight.ToString("G29"))</span>
             <span>@Model.WeightMeasureUnitName</span>
         </td>
     </tr>
@@ -162,3 +163,15 @@
         </td>
     </tr>
 </table>
+
+@if (shippingInfoUrl.HasValue())
+{
+    <modal id="shipping-info-modal" sm-render-at-page-end="true" sm-size="FlexSmall">
+        <modal-body>
+            <iframe src="@shippingInfoUrl" frameBorder="0" class="h-100"></iframe>
+        </modal-body>
+        <modal-footer>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">@T("Common.Close")</button>
+        </modal-footer>
+    </modal>
+}

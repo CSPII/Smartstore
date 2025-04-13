@@ -29,8 +29,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                 Id = Name
             };
 
-            root.AppendRange(new[] 
-            {
+            root.AppendRange(
+            [
                 new MenuItem
                 {
                     Id = "general",
@@ -48,8 +48,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "box",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Catalog"
+                    ControllerName = "Product",
+                    ActionName = "CatalogSettings"
                 },
                 new MenuItem
                 {
@@ -58,8 +58,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "search",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Search"
+                    ControllerName = "Search",
+                    ActionName = "SearchSettings"
                 },
                 new MenuItem
                 {
@@ -68,8 +68,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "person",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "CustomerUser"
+                    ControllerName = "Customer",
+                    ActionName = "CustomerUserSettings"
                 },
                 new MenuItem
                 {
@@ -78,8 +78,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "cart",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "ShoppingCart"
+                    ControllerName = "ShoppingCart",
+                    ActionName = "ShoppingCartSettings"
                 },
                 new MenuItem
                 {
@@ -88,8 +88,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "graph-up",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Order"
+                    ControllerName = "Order",
+                    ActionName = "OrderSettings"
                 },
                 new MenuItem
                 {
@@ -98,8 +98,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "credit-card",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Payment"
+                    ControllerName = "Payment",
+                    ActionName = "PaymentSettings"
                 },
                 new MenuItem
                 {
@@ -108,8 +108,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "percent",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Finance"
+                    ControllerName = "Tax",
+                    ActionName = "FinanceSettings"
                 },
                 new MenuItem
                 {
@@ -118,8 +118,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "truck",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Shipping"
+                    ControllerName = "Shipping",
+                    ActionName = "ShippingSettings"
                 },
                 new MenuItem
                 {
@@ -128,8 +128,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "trophy",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "RewardPoints"
+                    ControllerName = "Customer",
+                    ActionName = "RewardPointsSettings"
                 },
                 new MenuItem
                 {
@@ -138,8 +138,8 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "images",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "Media"
+                    ControllerName = "Media",
+                    ActionName = "MediaSettings"
                 },
                 new MenuItem
                 {
@@ -148,8 +148,18 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     IconLibrary = "bi",
                     Icon = "arrow-left-right",
                     PermissionNames = perm,
-                    ControllerName = "Setting",
-                    ActionName = "DataExchange"
+                    ControllerName = "Import",
+                    ActionName = "DataExchangeSettings"
+                },
+                new MenuItem
+                {
+                    Id = "performance",
+                    Text = T("Admin.Configuration.Settings.Performance"),
+                    IconLibrary = "bi",
+                    Icon = "speedometer2",
+                    PermissionNames = perm,
+                    ControllerName = "Maintenance",
+                    ActionName = "PerformanceSettings"
                 },
                 new MenuItem
                 {
@@ -162,7 +172,7 @@ namespace Smartstore.Admin.Infrastructure.Menus
                     ControllerName = "Setting",
                     ActionName = "AllSettings"
                 }
-            });
+            ]);
 
             // Add area = "Admin" to all items in one go.
             foreach (var item in root.Children)

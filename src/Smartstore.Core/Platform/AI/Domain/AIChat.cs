@@ -26,6 +26,12 @@ namespace Smartstore.Core.AI
         public IReadOnlyList<AIChatMessage> Messages
             => _messages;
 
+        /// <summary>
+        /// Gets the initial user message.
+        /// </summary>
+        /// <example>Create a title for a blog post on the topic '{0}'</example>
+        public AIChatMessage? InitialUserMessage { get; internal set; }
+
         public bool HasMessages()
             => _messages.Count > 0;
 
@@ -33,12 +39,28 @@ namespace Smartstore.Core.AI
         /// Adds messages. Empty messages are not added.
         /// </summary>
         /// <param name="messages">The messages to add.</param>
-        public void AddMessages(params AIChatMessage[] messages)
+        public AIChat AddMessages(params AIChatMessage[] messages)
         {
             if (messages != null)
             {
                 _messages.AddRange(messages.Where(x => x.Content.HasValue()));
             }
+
+            return this;
+        }
+
+        /// <summary>
+        /// Inserts messages at a given index. Empty messages are not inserted.
+        /// </summary>
+        /// <param name="messages">The messages to insert.</param>
+        public AIChat InsertMessages(int index, params AIChatMessage[] messages)
+        {
+            if (messages != null)
+            {
+                _messages.InsertRange(index, messages.Where(x => x.Content.HasValue()));
+            }
+
+            return this;
         }
 
         /// <summary>
@@ -91,7 +113,13 @@ namespace Smartstore.Core.AI
         public override string ToString()
             => string.Join(" ", _messages.Select(x => x.ToString()));
 
-        public string ToUserPrompt()
-            => string.Join(" ", _messages.Where(x => x.Role == KnownAIMessageRoles.User).Select(x => x.ToString()));
+        public string ToString(Func<AIChatMessage, bool> predicate)
+            => string.Join(" ", _messages.Where(predicate).Select(x => x.ToString()));
+
+        /// <summary>
+        /// Formats all messages including the role.
+        /// </summary>
+        public string ToFullString()
+            => string.Join(Environment.NewLine, _messages.Select(x => $"{x.Role,-10}: {x.Content}"));
     }
 }

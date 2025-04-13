@@ -1,19 +1,13 @@
 ﻿using Smartstore.Admin.Models.Orders;
-using Smartstore.Core.Common.Services;
+using Smartstore.Core.Identity;
 using Smartstore.Core.Security;
 
 namespace Smartstore.Admin.Components
 {
-    public class DashboardLatestOrdersViewComponent : SmartViewComponent
+    public class DashboardLatestOrdersViewComponent(
+        CustomerSettings customerSettings) : SmartViewComponent
     {
-        private readonly SmartDbContext _db;
-        private readonly IDateTimeHelper _dateTimeHelper;
-
-        public DashboardLatestOrdersViewComponent(SmartDbContext db, IDateTimeHelper dateTimeHelper)
-        {
-            _db = db;
-            _dateTimeHelper = dateTimeHelper;
-        }
+        private readonly CustomerSettings _customerSettings = customerSettings;
 
         public async Task<IViewComponentResult> InvokeAsync()
         {
@@ -23,7 +17,8 @@ namespace Smartstore.Admin.Components
             }
 
             var model = new DashboardLatestOrdersModel();
-            var latestOrders = await _db.Orders
+            var primaryCurrency = Services.CurrencyService.PrimaryCurrency;
+            var latestOrders = await Services.DbContext.Orders
                 .ApplyCustomerStoreFilter(await Services.StoreMappingService.GetCustomerAuthorizedStoreIdsAsync())
                 .AsNoTracking()
                 .AsSplitQuery()
@@ -31,26 +26,23 @@ namespace Smartstore.Admin.Components
                     .ThenInclude(x => x.CustomerRoleMappings)
                     .ThenInclude(x => x.CustomerRole)
                 .Include(x => x.OrderItems)
-                .OrderByDescending(x => x.CreatedOnUtc)
+                .OrderByDescending(x => x.Id)
                 .Take(7)
                 .ToListAsync();
 
-            var primaryCurrency = Services.CurrencyService.PrimaryCurrency;
-
             foreach (var order in latestOrders)
             {
-                model.LatestOrders.Add(
-                    new DashboardOrderModel
-                    {
-                        OrderNumber = order.OrderNumber.NullEmpty() ?? order.Id.ToString(),
-                        CustomerId = order.CustomerId,
-                        CustomerDisplayName = order.Customer.GetFullName().NullEmpty() ?? order.Customer.FindEmail(),
-                        ProductsTotal = order.OrderItems.Sum(x => x.Quantity),
-                        TotalAmount = Services.CurrencyService.CreateMoney(order.OrderTotal, primaryCurrency),
-                        Created = _dateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc).ToString("g"),
-                        OrderState = order.OrderStatus,
-                        OrderId = order.Id
-                    });
+                model.LatestOrders.Add(new()
+                {
+                    OrderNumber = order.OrderNumber.NullEmpty() ?? order.Id.ToString(),
+                    CustomerId = order.CustomerId,
+                    CustomerDisplayName = order.Customer.FormatUserName(_customerSettings, T, false, true),
+                    ProductsTotal = order.OrderItems.Sum(x => x.Quantity),
+                    TotalAmount = Services.CurrencyService.CreateMoney(order.OrderTotal, primaryCurrency),
+                    Created = Services.DateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc).ToString("g"),
+                    OrderState = order.OrderStatus,
+                    OrderId = order.Id
+                });
             }
 
             return View(model);
