@@ -22,6 +22,7 @@ namespace Smartstore.Core
         private Customer _customer;
         private Language _language;
         private Currency _currency;
+        private Store _store;
         private Customer _impersonator;
         private TaxDisplayType? _taxDisplayType;
         private bool? _isAdminArea;
@@ -55,6 +56,11 @@ namespace Smartstore.Core
             if (_currency == null)
             {
                 _currency = await _source.ResolveWorkingCurrencyAsync(_customer, IsAdminArea);
+            }
+
+            if (_store == null)
+            {
+                _store = _source.ResolveWorkingStoreAsync();
             }
 
             if (_taxDisplayType == null)
@@ -122,6 +128,27 @@ namespace Smartstore.Core
                 {
                     _source.SaveCustomerAttribute(CurrentCustomer, SystemCustomerAttributeNames.CurrencyId, value?.Id, false).Await();
                     _currency = value;
+                }
+            }
+        }
+
+        public Store WorkingStore
+        {
+            get
+            {
+                if (_store == null)
+                {
+                    InitializeAsync().Await();
+                }
+
+                return _store;
+            }
+            set
+            {
+                if (value?.Id != _store?.Id)
+                {
+                    _source.SaveCustomerAttribute(CurrentCustomer, SystemCustomerAttributeNames.StoreId, value?.Id, false).Await();
+                    _store = value;
                 }
             }
         }

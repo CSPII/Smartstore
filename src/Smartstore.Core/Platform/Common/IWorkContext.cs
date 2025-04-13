@@ -2,6 +2,7 @@
 using Smartstore.Core.Common;
 using Smartstore.Core.Identity;
 using Smartstore.Core.Localization;
+using Smartstore.Core.Stores;
 
 namespace Smartstore.Core
 {
@@ -40,6 +41,11 @@ namespace Smartstore.Core
         /// Get or set current user working currency
         /// </summary>
         Currency WorkingCurrency { get; set; }
+        
+        /// <summary>
+        /// Get or set current user working store
+        /// </summary>
+        Store WorkingStore { get; set; }
 
         /// <summary>
         /// Get or set current tax display type

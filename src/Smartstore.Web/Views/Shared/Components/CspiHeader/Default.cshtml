@@ -3,7 +3,7 @@
 <div class="cspi-header-border">
     <div class="cspi-header-section">
         @* Logo and title *@
-        <div style="display:flex; justify-content: space-between">
+        <div class="cspi-header-logo-title" style="display:flex; justify-content: space-between">
             <a href="https://www.cspii.org/">
                 <?xml version="1.0" standalone="no" ?>
                 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
@@ -48,11 +48,12 @@
                 </svg>
             </a>
             <div class="cspi-header-title">
-                Center for the Study of Political Islam <br /> International
+                Center for the Study of Political Islam <br class="d-none d-lg-block" /> International
             </div>
         </div>
+        @* Desktop Version *@
         @* Menu *@
-        <div class="cspi-header-menu">
+        <div class="cspi-header-menu d-none d-lg-flex">
             <div class="cspi-header-menu-item-active" onclick="window.location = 'https://www.cspii.org'">Home</div>
             <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/about-us'">About us</div>
             <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/learn-political-islam'">Learn More</div>
@@ -60,15 +61,54 @@
         </div>
         @* Stores *@
         <div sm-if="Model.Stores.Count > 1" class="cspi-header-stores">
-            <div class="cspi-header-store-active">
-                @Model.Stores[0].Name &nbsp;<i class="fas fa-caret-down"></i>
+            <div class="cspi-header-store-active d-none d-lg-flex">
+                @WorkContext.WorkingStore.Name &nbsp;<i class="fas fa-caret-down"></i>
                 <div class="cspi-header-store-list">
                     @foreach (var store in Model.Stores)
                     {
-                        <div class="cspi-header-store-menu-item" onclick="window.location = '@store.Url'">@store.Name</div>
+                        <a href="@Url.RouteUrl("ChangeStore", new { customerStore = store.Id })" class="dropdown-item cspi-header-store-menu-item"
+                           attr-class='(store.Id == WorkContext.WorkingStore.Id, "disabled")' title="@store.Name" rel="nofollow"
+                           data-selected="@(store.Equals(WorkContext.WorkingStore) ? "true" : "false")">
+                            @store.Name
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+        @* Mobile/Tablet Version *@
+        <div id="hamburger" class="d-block d-lg-none"
+             style="border: 1px solid; padding: 8px; padding-left: 12px; padding-right: 12px; border-radius:.2rem; z-index: 12;">
+            <svg width="24" height="24" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z" fill-rule="evenodd" /></svg>
+        </div>
+        <div id="cspi-header-mobile-menu"
+             style="display:none; position:absolute; background-color: #DAE1E7; width:100%; top:4px;left:0; z-index:11">
+            <div class="cspi-header-menu" style="padding-bottom: 20px">
+                <div style="border-bottom: 1px #b8c2cc solid; padding-bottom:12px;">
+                    <div class="cspi-header-menu-item-active" onclick="window.location = 'https://www.cspii.org'">Home</div>
+                    <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/about-us'">About us</div>
+                    <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/learn-political-islam'">Learn More</div>
+                    <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/get-involved'">Get Involved</div>
+                </div>
+                <div style="padding-top:12px;">
+                    <span class="dropdown-item cspi-header-store-menu-item" style="text-transform:uppercase;">Sites:</span>
+                    @foreach (var store in Model.Stores)
+                    {
+                        <a href="@Url.RouteUrl("ChangeStore", new { customerStore = store.Id })" 
+                        class="dropdown-item cspi-header-menu-item" style="color:#E76363"
+                           attr-class='(store.Id == WorkContext.WorkingStore.Id, "disabled")' title="@store.Name" rel="nofollow"
+                           data-selected="@(store.Equals(WorkContext.WorkingStore) ? "true" : "false")">
+                            @store.Name
+                        </a>
                     }
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    $("#hamburger").click(function(){
+        $(this).toggleClass('cspi-header-menu-open');
+        $('#cspi-header-mobile-menu').toggle();
+    });
+</script>

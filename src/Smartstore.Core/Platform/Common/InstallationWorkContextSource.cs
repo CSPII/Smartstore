@@ -3,6 +3,7 @@ using Smartstore.Core.Common;
 using Smartstore.Core.Data;
 using Smartstore.Core.Identity;
 using Smartstore.Core.Localization;
+using Smartstore.Core.Stores;
 
 namespace Smartstore.Core
 {
@@ -28,6 +29,11 @@ namespace Smartstore.Core
         public Task<Currency> ResolveWorkingCurrencyAsync(Customer customer, bool forAdminArea)
         {
             return _db.Currencies.OrderBy(x => x.Id).FirstAsync();
+        }
+
+        public Store ResolveWorkingStoreAsync()
+        {
+            return _db.Stores.OrderBy(x => x.Id).FirstOrDefault();
         }
 
         public Task<TaxDisplayType> ResolveTaxDisplayTypeAsync(Customer customer, int storeId)

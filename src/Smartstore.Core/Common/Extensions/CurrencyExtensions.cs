@@ -13,7 +13,7 @@ namespace Smartstore
             if (currency == null || domain.IsEmpty() || currency.DomainEndings.IsEmpty())
                 return false;
 
-            var endings = currency.DomainEndings.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var endings = currency.DomainEndings.Split([','], StringSplitOptions.RemoveEmptyEntries);
             return endings.Any(x => domain.EndsWith(x, StringComparison.InvariantCultureIgnoreCase));
         }
 

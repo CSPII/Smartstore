@@ -41,6 +41,8 @@
 
         // Depends on store
         public static string CurrencyId => "CurrencyId";
+        public static string StoreId => "StoreId";
+
         public static string LanguageId => "LanguageId";
         public static string LastContinueShoppingPage => "LastContinueShoppingPage";
         public static string WorkingThemeName => "WorkingThemeName";

@@ -141,7 +141,7 @@ namespace Smartstore.Core
             {
                 var detector = _customerDetectors[i];
                 customer = await detector(context);
-                
+
                 if (customer != null)
                 {
                     if (customer.IsSystemAccount)
@@ -214,7 +214,7 @@ namespace Smartstore.Core
         public async virtual Task<Language> ResolveWorkingLanguageAsync(Customer customer)
         {
             Guard.NotNull(customer);
-            
+
             // Resolve the current working language
             var language = await _languageResolver.ResolveLanguageAsync(customer, _httpContextAccessor.HttpContext);
 
@@ -339,6 +339,28 @@ namespace Smartstore.Core
             return currency;
         }
 
+        public virtual Store ResolveWorkingStoreAsync()
+        {
+            var query = _db.Stores.AsNoTracking();
+            Store store = null;
+
+            // Find store by url
+            var request = _httpContextAccessor.HttpContext?.Request;
+            if (request != null)
+            {
+                var url = request.Scheme + "://" + request.Host.Value + "/";
+                store = query.Where(store => store.Url == url).FirstOrDefault();
+            }
+
+            // Get default store.
+            if (store == null)
+            {
+                store = _storeContext.CurrentStore;
+            }
+
+            return store;
+        }
+
         private static Currency VerifyCurrency(Currency currency)
         {
             if (currency != null && !currency.Published)
@@ -414,7 +436,7 @@ namespace Smartstore.Core
                 return Task.CompletedTask;
             }
         }
-        
+
         #region Customer resolvers
 
         protected class DetectCustomerContext
@@ -452,7 +474,7 @@ namespace Smartstore.Core
             {
                 return context.CustomerService.GetCustomerBySystemNameAsync(SystemCustomerNames.BackgroundTask);
             }
-            
+
             return Task.FromResult<Customer>(null);
         }
 
@@ -508,7 +530,7 @@ namespace Smartstore.Core
                     return customer;
                 }
             }
-            
+
             return null;
         }
 
@@ -518,7 +540,7 @@ namespace Smartstore.Core
             if (visitorCookie != null && Guid.TryParse(visitorCookie, out var customerGuid))
             {
                 context.CustomerGuid = customerGuid;
-                
+
                 // Cookie present. Try to load guest customer by it's value.
                 var customer = await context.Db.Customers
                     //.IncludeShoppingCart()
