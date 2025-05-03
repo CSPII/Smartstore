@@ -2,6 +2,7 @@
 using Smartstore.Core.Common;
 using Smartstore.Core.Identity;
 using Smartstore.Core.Localization;
+using Smartstore.Core.Stores;
 
 namespace Smartstore.Core
 {
@@ -28,6 +29,11 @@ namespace Smartstore.Core
         /// Resolves the working currency for the given customer (uncached).
         /// </summary>
         Task<Currency> ResolveWorkingCurrencyAsync(Customer customer, bool forAdminArea);
+        
+        /// <summary>
+        /// Resolves the working store for the given customer (uncached).
+        /// </summary>
+        Store ResolveWorkingStoreAsync();
 
         /// <summary>
         /// Resolves the tax display type for the given customer and store id (uncached).
