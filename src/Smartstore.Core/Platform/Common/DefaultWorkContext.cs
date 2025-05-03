@@ -71,7 +71,7 @@ namespace Smartstore.Core
 
         public bool IsInitialized
         {
-            get => _customer != null && _language != null && _currency != null && _taxDisplayType.HasValue;
+            get => _customer != null && _language != null && _currency != null && _taxDisplayType.HasValue && _store != null;
         }
 
         public Customer CurrentCustomer
