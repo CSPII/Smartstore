@@ -424,13 +424,18 @@ $img-margin-right: 10px;
 }
 
 
-// Placeholder
+// Placeholder & Selection
 // ------------------------------------------
 
 .note-placeholder {
     position: absolute;
     display: none;
     color: var(--gray-600);
+}
+
+.note-selection {
+    background-color: var(--primary-bg-subtle);
+    color: var(--body-color);
 }
 
 
@@ -865,18 +870,18 @@ $img-margin-right: 10px;
 // Emojis
 // ------------------------------------------
 
-.note-dropdown-emoji {
+.note-emoji-popover {
     --note-emoji-size: 40px;
     --note-emoji-gap: 1px;
-    --note-emoji-cols: 9;
+    --note-emoji-cols: 10;
     --note-emoji-padding: 0.5rem;
-    overflow: hidden;
-    height: 400px;
-    width: calc(var(--note-emoji-size) * var(--note-emoji-cols) + (var(--note-emoji-gap) * var(--note-emoji-cols)) + (var(--note-emoji-padding) * 2) + 13px);
-    flex-flow: column;
 
-    &.show {
+    > .popover-content-emoji {
         display: flex;
+        flex-flow: column;
+        overflow: hidden;
+        height: 348px;
+        width: calc(var(--note-emoji-size) * var(--note-emoji-cols) + (var(--note-emoji-gap) * var(--note-emoji-cols)) + (var(--note-emoji-padding) * 2) + 13px);
     }
 }
 
@@ -893,8 +898,9 @@ $img-margin-right: 10px;
     padding-inline-end: var(--note-emoji-padding);
 }
 
-.nav-emoji {
-    justify-content: space-between;
+.nav.nav-emoji {
+    justify-content: space-around;
+    flex-wrap: nowrap;
 
     > .nav-link {
         &:not(.active) {
@@ -904,12 +910,30 @@ $img-margin-right: 10px;
     }
 }
 
-.note-emoji {
-    font-size: 22px;
+.btn.note-emoji {
+    font-size: 24px;
     font-weight: var(--font-weight-normal);
     border-width: 0;
+    overflow-x: hidden;
     --btn-active-shadow: none;
     --btn-height: var(--note-emoji-size);
+}
+
+.note-emoji-skin {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--c, #ffdc5d);
+    transition: transform 0.12s;
+
+    &.active {
+        outline: 2px solid rgba(0,0,0, 0.6);
+        transition: none;
+    }
+
+    &:hover:not(.active) {
+        transform: scale(1.35);
+    }
 }
 
 
