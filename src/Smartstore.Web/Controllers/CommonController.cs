@@ -198,6 +198,21 @@ namespace Smartstore.Web.Controllers
             return RedirectToReferrer(returnUrl);
         }
 
+        [DisallowRobot]
+        [LocalizedRoute("/store-selected/{customerStore:int}", Name = "ChangeStore")]
+        public async Task<IActionResult> StoreSelected(int customerStore)
+        {
+            var store = await _db.Stores.FindByIdAsync(customerStore);
+            if (store == null)
+            {
+                return NotFound();
+            }
+
+            Services.WorkContext.WorkingStore = store;
+
+            return RedirectToReferrer(store.Url);
+        }
+
         [CheckStoreClosed(false)]
         [DisallowRobot]
         [LocalizedRoute("/set-language/{langid:int}", Name = "ChangeLanguage")]
