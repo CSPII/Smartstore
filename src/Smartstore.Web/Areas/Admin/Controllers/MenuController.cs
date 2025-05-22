@@ -8,6 +8,7 @@ using Smartstore.Core.Security;
 using Smartstore.Core.Stores;
 using Smartstore.Web.Models.DataGrid;
 using Smartstore.Web.Rendering;
+using static Smartstore.Core.Security.Permissions.Cms;
 
 namespace Smartstore.Admin.Controllers
 {
@@ -61,6 +62,9 @@ namespace Smartstore.Admin.Controllers
                 .ToList();
 
             var entities = await _db.MenuItems
+                .ApplyCustomerStoreFilter(
+                    await Services.StoreMappingService.GetCustomerAuthorizedStoreIdsAsync(),
+                    await Services.StoreMappingService.GetStoreMappingCollectionAsync("MenuItemRecord", [.. _db.MenuItems.Select(x => x.Id)]))
                 .AsNoTracking()
                 .Include(x => x.Menu)
                 .Where(x => x.MenuId == model.Id)
@@ -184,7 +188,10 @@ namespace Smartstore.Admin.Controllers
                 query = query.Where(x => x.SystemName == model.SystemName);
             }
 
-            var menuRecords = await query
+            var menuRecords = await query.
+                ApplyCustomerStoreFilter(
+                    await Services.StoreMappingService.GetCustomerAuthorizedStoreIdsAsync(),
+                    await Services.StoreMappingService.GetStoreMappingCollectionAsync("MenuRecord", [.. _db.Menus.Select(x => x.Id)]))
                 .ApplyStoreFilter(model.StoreId)
                 .OrderBy(x => x.SystemName)
                 .ApplyGridCommand(command)
@@ -286,6 +293,12 @@ namespace Smartstore.Admin.Controllers
             if (menu == null)
             {
                 return NotFound();
+            }
+
+            if (!await Services.Permissions.CanAccessEntity(menu))
+            {
+                NotifyAccessDenied();
+                return RedirectToAction(nameof(List));
             }
 
             var model = await MapperFactory.MapAsync<MenuEntity, MenuEntityModel>(menu);
@@ -428,6 +441,12 @@ namespace Smartstore.Admin.Controllers
             if (item == null)
             {
                 return NotFound();
+            }
+
+            if (!await Services.Permissions.CanAccessEntity(item))
+            {
+                NotifyAccessDenied();
+                return RedirectToAction(nameof(List));
             }
 
             var model = await MapperFactory.MapAsync<MenuItemEntity, MenuItemModel>(item);

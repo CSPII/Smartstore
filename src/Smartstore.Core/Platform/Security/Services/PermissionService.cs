@@ -4,6 +4,7 @@ using Smartstore.Collections;
 using Smartstore.Core.Catalog.Products;
 using Smartstore.Core.Checkout.Orders;
 using Smartstore.Core.Checkout.Shipping;
+using Smartstore.Core.Content.Menus;
 using Smartstore.Core.Data;
 using Smartstore.Core.Identity;
 using Smartstore.Core.Localization;
@@ -738,6 +739,22 @@ namespace Smartstore.Core.Security
                     var productReview = entity as ProductReview;
                     var prStoreMappings = await _storeMappingService.GetStoreMappingCollectionAsync(nameof(Product), [productReview.ProductId]);
                     if (prStoreMappings.Count != 0 && !customerAuthorizedStores.Any(casId => prStoreMappings.Any(storeMapping => storeMapping.StoreId == casId)))
+                    {
+                        return false;
+                    }
+                    break;
+                case "MenuEntity":
+                    var menu = entity as MenuEntity;
+                    var menuStoreMappings = await _storeMappingService.GetStoreMappingCollectionAsync("MenuRecord", [menu.Id]);
+                    if (menuStoreMappings.Count != 0 && !customerAuthorizedStores.Any(casId => menuStoreMappings.Any(storeMapping => storeMapping.StoreId == casId)))
+                    {
+                        return false;
+                    }
+                    break;
+                case "MenuItemEntity":
+                    var menuItem = entity as MenuItemEntity;
+                    var menuItemStoreMappings = await _storeMappingService.GetStoreMappingCollectionAsync("MenuItemRecord", [menuItem.Id]);
+                    if (menuItemStoreMappings.Count != 0 && !customerAuthorizedStores.Any(casId => menuItemStoreMappings.Any(storeMapping => storeMapping.StoreId == casId)))
                     {
                         return false;
                     }
