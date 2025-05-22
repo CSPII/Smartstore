@@ -66,6 +66,9 @@ namespace Smartstore.Admin.Controllers
         {
             var query = _db.Topics
                 .AsNoTracking()
+                .ApplyCustomerStoreFilter(
+                    await Services.StoreMappingService.GetCustomerAuthorizedStoreIdsAsync(),
+                    await Services.StoreMappingService.GetStoreMappingCollectionAsync(nameof(Topic), [.. _db.Topics.Select(x => x.Id)]))
                 .ApplyStoreFilter(model.SearchStoreId);
 
             if (model.SystemName.HasValue())
@@ -209,6 +212,12 @@ namespace Smartstore.Admin.Controllers
             var topic = await _db.Topics.FindByIdAsync(id, false);
             if (topic == null)
             {
+                return RedirectToAction(nameof(List));
+            }
+
+            if (!await Services.Permissions.CanAccessEntity(topic))
+            {
+                NotifyAccessDenied();
                 return RedirectToAction(nameof(List));
             }
 

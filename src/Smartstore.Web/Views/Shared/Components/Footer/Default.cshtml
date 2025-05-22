@@ -32,7 +32,7 @@
         <div class="container footer-main">
             <div class="row sm-gutters">
 
-                <div class="col-md-4 col-lg-3">
+                @* <div class="col-md-4 col-lg-3">
                     <nav class="footer-links nav-collapsible">
                         <h4 class="footer-title nav-toggler collapsed" data-toggle="collapse" data-target="#footer-info" aria-controls="footer-info" aria-expanded="false">
                             @Html.Raw(T("Footer.Info"))
@@ -65,8 +65,20 @@
                             <menu name="FooterCompany" template="LinkList" />
                         </div>
                     </nav>
+                </div> *@
+
+                <div class="col-md-4 col-lg-3 footer-cspi1">
+                    <nav class="footer-links company nav-collapsible">
+                        <h4 class="footer-title nav-toggler collapsed" data-toggle="collapse" data-target="#footer-cspi1" aria-controls="footer-cspi1" aria-expanded="false">
+                            @Html.Raw(T("Footer.Info"))
+                        </h4>
+                        <div class="collapse nav-collapse" id="footer-cspi1">
+                            <menu name="FooterCspi1" template="LinkList" />
+                        </div>
+                    </nav>
                 </div>
 
+                @* Newsletter *@
                 <div class="col-12 col-lg-3">
                     <zone name="footer_col_4_before"></zone>
 
@@ -146,15 +158,18 @@
                 <div sm-if="Model.ShowLegalInfo">
                     @Html.Raw(Model.LegalInfo)
                 </div>
-
-                <div sm-if="Model.SmartStoreHint.HasValue()">
-                    @Html.Raw(Model.SmartStoreHint)
-                </div>
-
-                <div>
-                    @Html.Raw(T("Content.CopyrightNotice", DateTime.Now.Year.ToString(), Model.StoreName))
-                </div>
             </div>
         </div>
     </div>
+
+    <div class="cspi-footer">
+        <div class="cspi-footer-inner">
+            <menu name="FooterCspi2" template="CspiFooter2Navbar" />
+            <div class="cspi-footer-right">
+                <div style="color:white;" onclick="window.location = 'https://www.cspii.org'">© 2015-@DateTime.Now.Year.ToString()</div>
+                <div class="footer-menu" style="width:auto;" onclick="window.location = 'https://www.cspii.org/about-us'">CSPI International, z.s.</div>
+            </div>
+        </div>
+    </div>
+
 </footer>

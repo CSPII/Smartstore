@@ -54,10 +54,7 @@
         @* Desktop Version *@
         @* Menu *@
         <div class="cspi-header-menu d-none d-lg-flex">
-            <div class="cspi-header-menu-item-active" onclick="window.location = 'https://www.cspii.org'">Home</div>
-            <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/about-us'">About us</div>
-            <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/learn-political-islam'">Learn More</div>
-            <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/get-involved'">Get Involved</div>
+            <menu name="CspiHeader" template="CspiHeaderNavbar" />
         </div>
         @* Stores *@
         <div sm-if="Model.Stores.Count > 1" class="cspi-header-stores">
@@ -82,19 +79,16 @@
         </div>
         <div id="cspi-header-mobile-menu"
              style="display:none; position:absolute; background-color: #DAE1E7; width:100%; top:4px;left:0; z-index:11">
-            <div class="cspi-header-menu" style="padding-bottom: 20px">
+            <div class="" style="padding-bottom: 20px">
                 <div style="border-bottom: 1px #b8c2cc solid; padding-bottom:12px;">
-                    <div class="cspi-header-menu-item-active" onclick="window.location = 'https://www.cspii.org'">Home</div>
-                    <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/about-us'">About us</div>
-                    <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/learn-political-islam'">Learn More</div>
-                    <div class="cspi-header-menu-item" onclick="window.location = 'https://www.cspii.org/get-involved'">Get Involved</div>
+                    <menu name="CspiHeader" template="CspiHeaderNavbar" />
                 </div>
-                <div style="padding-top:12px;">
+                <div class="cspi-header-menu" style="padding-top:12px;">
                     <span class="dropdown-item cspi-header-store-menu-item" style="text-transform:uppercase;">Sites:</span>
                     @foreach (var store in Model.Stores)
                     {
-                        <a href="@Url.RouteUrl("ChangeStore", new { customerStore = store.Id })" 
-                        class="dropdown-item cspi-header-menu-item" style="color:#E76363"
+                        <a href="@Url.RouteUrl("ChangeStore", new { customerStore = store.Id })"
+                           class="dropdown-item cspi-header-menu-item" style="color:#E76363"
                            attr-class='(store.Id == WorkContext.WorkingStore.Id, "disabled")' title="@store.Name" rel="nofollow"
                            data-selected="@(store.Equals(WorkContext.WorkingStore) ? "true" : "false")">
                             @store.Name
