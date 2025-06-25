@@ -368,6 +368,9 @@ namespace Smartstore.Admin.Controllers
         {
             var topics = await _db.Topics
                 .AsNoTracking()
+                .ApplyCustomerStoreFilter(
+                    await Services.StoreMappingService.GetCustomerAuthorizedStoreIdsAsync(),
+                    await Services.StoreMappingService.GetStoreMappingCollectionAsync(nameof(Topic), [.. _db.Topics.Select(x => x.Id)]))
                 .ApplyStandardFilter(true)
                 .Where(x => includeWidgets || !x.RenderAsWidget)
                 .ToListAsync();
