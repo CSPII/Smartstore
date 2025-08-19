@@ -14,10 +14,10 @@
 
 <div class="gal-box">
     <!-- Thumbnail navigation -->
-    <div class="gal-nav-cell@(Model.Files.Count <= 1 ? " gal-nav-hidden" : "")">
+    <div class="gal-nav-cell" attr-class='(Model.Files.Count <= 1, "gal-nav-hidden")'>
         <div class="gal-nav">
             <div class="gal-list">
-                <div class="gal-track" itemscope itemtype="http://schema.org/ImageGallery">
+                <div class="gal-track" role="listbox" aria-orientation="vertical" itemscope itemtype="http://schema.org/ImageGallery" aria-label="@T("Aria.Label.MediaGallery")">
                     @for (int i = 0; i < Model.Files.Count; i++)
                     {
                         var file = Model.Files[i];
@@ -35,7 +35,6 @@
                         {
                             picTitle = file.TitleAttribute;
                         }
-
                         @if (!isVideo)
                         {
                             <div class="gal-item" itemprop="associatedMedia" itemscope itemtype="http://schema.org/@(isVideo ? "Video" : "Image")Object">
@@ -47,7 +46,15 @@
                                    data-height="@file.Size.Height"
                                    data-medium-image="@file.GetUrl(Model.ImageSize)"
                                    title="@linkTitle"
-                                   data-picture-id="@file.Id">
+                                   aria-label="@linkTitle"
+                                   data-picture-id="@file.Id"
+                                   role="option"
+                                   tabindex="@(i == 0 ? "0" : "-1")"
+                                   aria-selected="@(i == 0 ? "true" : "false")">
+                                    <meta itemprop="thumbnailURL" content="@file.GetUrl(MediaSettings.ThumbnailSizeMd)" />
+                                    <meta itemprop="embedURL" content="@file.GetUrl()" />
+                                    <meta itemprop="name" content="@linkTitle" />
+                                    <meta itemprop="uploadDate" content="@file.CreatedOn.ToString("u")" />
                                     <media sm-file="file" sm-size="Model.ThumbSize" class="gal-item-content" alt="@picAlt" title="@picTitle" />
                                 </a>
                             </div>

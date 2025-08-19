@@ -261,6 +261,8 @@ namespace Smartstore.Web.TagHelpers.Shared
             var classList = ul.GetClassList();
             classList.Add("nav");
 
+            ul.Attributes.Add("role", "tablist");
+
             if (Style == TabsStyle.Tabs)
             {
                 classList.Add("nav-tabs");
@@ -385,7 +387,7 @@ namespace Smartstore.Web.TagHelpers.Shared
             paneDiv.GenerateId(tab.Id, "-");
             var paneId = paneDiv.Attributes["id"];
 
-            paneDiv.Attributes.Add("aria-labelledby", $"{paneDiv.Attributes["id"]}-tab");
+            paneDiv.Attributes.Add("aria-labelledby", paneId + "-tab");
             paneDiv.Attributes.Add("data-tab-name", tab.Name);
 
             if (Responsive)
@@ -398,6 +400,8 @@ namespace Smartstore.Web.TagHelpers.Shared
                 collapseHeader.Attributes.Add("data-toggle", "collapse");
                 collapseHeader.Attributes.Add("data-target", $"#{collapsePaneId}");
                 collapseHeader.Attributes.Add("aria-expanded", tab.Selected.ToString().ToLower());
+                collapseHeader.Attributes.Add("data-aria-controls", collapsePaneId);
+                collapseHeader.Attributes.Add("tabindex", "0");
 
                 if (!tab.Selected)
                 {
@@ -443,6 +447,7 @@ namespace Smartstore.Web.TagHelpers.Shared
             }
             li.Attributes.TryRemove("id", out _);
             li.Attributes.TryRemove("href", out _);
+            li.Attributes.Add("role", "presentation");
 
             li.AppendCssClass("nav-item");
 
@@ -461,7 +466,12 @@ namespace Smartstore.Web.TagHelpers.Shared
 
                 // Link/Target
                 var itemId = "#" + tab.Id;
+
                 a.AppendCssClass("nav-link" + (tab.Selected ? " active" : ""));
+                a.MergeAttribute("id", tab.Id + "-tab");
+                a.MergeAttribute("role", "tab");
+                a.MergeAttribute("aria-controls", tab.Id);
+                a.MergeAttribute("aria-selected", tab.Selected.ToString().ToLower());
 
                 if (tab.LinkClass.HasValue())
                 {

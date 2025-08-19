@@ -108,12 +108,7 @@
 }
 
 <div class="card-title">
-    <div class="pd-assoc-title row gx-2 row-gap-1 align-items-center"
-         aria-expanded="false"
-         role="button"
-         data-target="#@id"
-         aria-controls="@id">
-
+    <div class="pd-assoc-title row gx-2 row-gap-1 align-items-center">
         @* Image / Name *@
         <div class="col-12 col-sm-@colSmSizeName col-md-@colMdSizeName col-lg-@colLgSizeName col-xl-@colXlSizeName">
             <div class="row gx-0 flex-nowrap">
@@ -121,7 +116,7 @@
                     <div class="pd-assoc-img">
                         @if (img != null)
                         {
-                            <img class="@imgClass" src="@img.GetUrl(gallery.ThumbSize)" alt="@(img?.Alt)" title="@(img?.TitleAttribute)" />
+                            <img class="@imgClass" src="@img.GetUrl(gallery.ThumbSize)" alt="@(img.Alt.NullEmpty() ?? img.TitleAttribute)" title="@img.TitleAttribute" />
                         }
                         else if (gallery.ThumbFallbackUrl.HasValue())
                         {
@@ -171,10 +166,10 @@
                    data-toggle="offcanvas"
                    data-target="#offcanvas-cart"
                    title="@T(Model.AddToCart.AvailableForPreOrder ? "ShoppingCart.PreOrder" : "ShoppingCart.AddToCart")">
-                    <i class="fa fa-cart-arrow-down"></i>
+                    <i class="fa fa-cart-arrow-down" aria-hidden="true"></i>
                 </a>
             </div>
-            <i class="fas fa-angle-up collapse-chevron m-0 ml-2"></i>
+            <i class="fas fa-angle-up collapse-chevron m-0 ml-2" aria-hidden="true"></i>
         </div>
     </div>
 </div>

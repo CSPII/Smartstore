@@ -178,11 +178,6 @@
         },
 
 		/**
-		 * Copyright 2012, Digital Fusion
-		 * Licensed under the MIT license.
-		 * http://teamdf.com/jquery-plugins/license/
-		 *
-		 * @author Sam Sehnert
 		 * @desc A small plugin that checks whether elements are within
 		 *       the user visible viewport of a web browser.
 		 *       only accounts for vertical position, not horizontal.
@@ -258,7 +253,8 @@
                     });
                 }
 
-                var maxHeight = el.data('max-height') || 260;
+                const elId = el.attr('id') || '';
+                const maxHeight = el.data('max-height') || 260;
 
                 if (actualHeight <= maxHeight) {
                     el.css('max-height', 'none');
@@ -271,23 +267,24 @@
 
                 el.on('click', '.btn-text-expander', function (e) {
                     e.preventDefault();
-                    if ($(this).hasClass('btn-text-expander--expand')) {
-                        el.addClass('expanded').removeClass('collapsed');
-                    }
-                    else {
-                        el.addClass('collapsed').removeClass('expanded');
-                    }
+                    const expanding = $(this).hasClass('btn-text-expander--expand');
+
+                    el.toggleClass('expanded', expanding).toggleClass('collapsed', !expanding);
+                    el.find('.btn-text-expander--expand').aria('expanded', expanding);
+                    el.find('.btn-text-expander--collapse').aria('expanded', !expanding);
                     return false;
                 });
 
                 var expander = el.find('.btn-text-expander--expand');
                 if (expander.length === 0) {
-                    el.append('<a href="#" class="btn-text-expander btn-text-expander--expand"><i class="fa fa fa-angle-double-down pr-2"></i><span>' + Res['Products.Longdesc.More'] + '</span></a>');
+                    el.append(`<a href="#" class="btn-text-expander btn-text-expander--expand" aria-expanded="false" aria-controls="${elId}">`
+                        + `<i class="fa fa fa-angle-double-down pr-2" aria-hidden="true"></i><span>${Res['Products.Longdesc.More']}</span></a>`);
                 }
 
                 var collapser = el.find('.btn-text-expander--collapse');
                 if (collapser.length === 0) {
-                    el.append('<a href="#" class="btn-text-expander btn-text-expander--collapse"><i class="fa fa fa-angle-double-up pr-2"></i><span>' + Res['Products.Longdesc.Less'] + '</span></a>');
+                    el.append(`<a href="#" class="btn-text-expander btn-text-expander--collapse focus-inset" aria-expanded="true" aria-controls="${elId}">`
+                        + `<i class="fa fa fa-angle-double-up pr-2" aria-hidden="true"></i><span>${Res['Products.Longdesc.Less']}</span></a>`);
                 }
             });
         },
@@ -357,6 +354,46 @@
 
                     timeout = window.requestAnimationFrame(resizeAllGridItems);
                 });
+            });
+        },
+
+        /**
+         * Gets or sets ARIA attributes on the matched elements.
+         * 
+         * @param {String|Object} key Either the ARIA attribute name (without 'aria-' prefix) 
+         *                            or an object of key-value pairs
+         * @param {String} [value] The value to set (if setting a single attribute)
+         * @return {String|jQuery} Returns the attribute value when getting, or the jQuery object for chaining when setting
+         */
+        aria: function (key, value) {
+            // Handle getting values
+            if (value === undefined && typeof key === 'string') {
+                // Get the first element's attribute
+                if (this.length === 0) return undefined;
+                var attrName = 'aria-' + key;
+                var attrValue = this[0].getAttribute(attrName);
+
+                // Convert "true"/"false" to booleans if they're not strings
+                if (attrValue === 'true') return true;
+                if (attrValue === 'false') return false;
+
+                return attrValue;
+            }
+
+            // Handle setting values
+            return this.each(function () {
+                // Handle object of key-value pairs
+                if (typeof key === 'object') {
+                    for (var k in key) {
+                        if (key.hasOwnProperty(k)) {
+                            this.setAttribute('aria-' + k, key[k]);
+                        }
+                    }
+                }
+                // Handle single key-value pair
+                else if (typeof key === 'string') {
+                    this.setAttribute('aria-' + key, value);
+                }
             });
         }
     }); // $.fn.extend

@@ -344,7 +344,7 @@ $pd-offer-spacing:              $grid-gutter-width / 2;
 }
 
 .pd-promoprice-tip {
-    padding-inline-start: 0.5rem;
+    margin-inline-start: 0.5rem;
     color: $gray-600 !important;
 }
 
@@ -374,7 +374,7 @@ $pd-offer-spacing:              $grid-gutter-width / 2;
         font-size: $font-size-sm;
         overflow-x: auto;
 
-        th, td { padding-left: 0.5rem; padding-right: 0.5rem; }
+        :is(th, td) { padding-inline: 0.5rem; }
         th { font-weight: $font-weight-medium; }
         .pd-tierprice-qty { font-weight: bold }
     }
@@ -466,7 +466,7 @@ $pd-offer-spacing:              $grid-gutter-width / 2;
 // ------------------------------------------------------
 
 .table-compare {
-    td, th {
+    :is(td, th) {
         width: 20%;
     }
     
@@ -543,6 +543,7 @@ $pd-offer-spacing:              $grid-gutter-width / 2;
         text-align: center;
         border-inline-end: 1px solid rgba(#000, 0.15);
         padding-top: 6px; // for the transform
+        padding-bottom: $focus-ring-width; // For visual focus
         &:last-child { border-color: transparent; }
 
         // When more than 4 action items are available,
@@ -658,8 +659,7 @@ $pd-offer-spacing:              $grid-gutter-width / 2;
         overflow: initial;
     }
 
-    .numberinput,
-    .qty-input-dropdown {
+    :is(.numberinput, .qty-input-dropdown) {
         box-shadow: var(--box-shadow-xs);
     }
 }

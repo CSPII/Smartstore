@@ -16,7 +16,6 @@ using Smartstore.Core.Security;
 using Smartstore.Core.Seo.Routing;
 using Smartstore.Core.Stores;
 using Smartstore.Core.Web;
-using Smartstore.Engine.Modularity;
 using Smartstore.Web.Models.Customers;
 using Smartstore.Web.Models.Identity;
 using Smartstore.Web.Rendering;
@@ -29,7 +28,6 @@ namespace Smartstore.Web.Controllers
         private readonly UserManager<Customer> _userManager;
         private readonly SignInManager<Customer> _signInManager;
         private readonly RoleManager<CustomerRole> _roleManager;
-        private readonly IProviderManager _providerManager;
         private readonly ITaxService _taxService;
         private readonly IAddressService _addressService;
         private readonly IShoppingCartService _shoppingCartService;
@@ -41,7 +39,6 @@ namespace Smartstore.Web.Controllers
         private readonly DateTimeSettings _dateTimeSettings;
         private readonly TaxSettings _taxSettings;
         private readonly LocalizationSettings _localizationSettings;
-        private readonly ExternalAuthenticationSettings _externalAuthenticationSettings;
         private readonly RewardPointsSettings _rewardPointsSettings;
 
         public IdentityController(
@@ -49,7 +46,6 @@ namespace Smartstore.Web.Controllers
             UserManager<Customer> userManager,
             SignInManager<Customer> signInManager,
             RoleManager<CustomerRole> roleManager,
-            IProviderManager providerManager,
             ITaxService taxService,
             IAddressService addressService,
             IShoppingCartService shoppingCartService,
@@ -61,14 +57,12 @@ namespace Smartstore.Web.Controllers
             DateTimeSettings dateTimeSettings,
             TaxSettings taxSettings,
             LocalizationSettings localizationSettings,
-            ExternalAuthenticationSettings externalAuthenticationSettings,
             RewardPointsSettings rewardPointsSettings)
         {
             _db = db;
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
-            _providerManager = providerManager;
             _taxService = taxService;
             _addressService = addressService;
             _shoppingCartService = shoppingCartService;
@@ -80,7 +74,6 @@ namespace Smartstore.Web.Controllers
             _dateTimeSettings = dateTimeSettings;
             _taxSettings = taxSettings;
             _localizationSettings = localizationSettings;
-            _externalAuthenticationSettings = externalAuthenticationSettings;
             _rewardPointsSettings = rewardPointsSettings;
         }
 
@@ -99,7 +92,7 @@ namespace Smartstore.Web.Controllers
                 DisplayCaptcha = _captchaSettings.CanDisplayCaptcha && _captchaSettings.ShowOnLoginPage,
             };
 
-            ViewBag.ReturnUrl = returnUrl ?? Url.Content("~/");
+            ViewBag.ReturnUrl = Url.IsLocalUrl(returnUrl) ? returnUrl : Url.Content("~/");
 
             return View(model);
         }
@@ -115,6 +108,11 @@ namespace Smartstore.Web.Controllers
             if (_captchaSettings.ShowOnLoginPage && captchaError.HasValue())
             {
                 ModelState.AddModelError(string.Empty, captchaError);
+            }
+
+            if (!Url.IsLocalUrl(returnUrl))
+            {
+                returnUrl = string.Empty;
             }
 
             ViewBag.ReturnUrl = returnUrl;
@@ -151,8 +149,7 @@ namespace Smartstore.Web.Controllers
                         if (returnUrl.IsEmpty()
                             || returnUrl == "/"
                             || returnUrl.Contains("/passwordrecovery", StringComparison.OrdinalIgnoreCase)
-                            || returnUrl.Contains("/activation", StringComparison.OrdinalIgnoreCase)
-                            || !Url.IsLocalUrl(returnUrl))
+                            || returnUrl.Contains("/activation", StringComparison.OrdinalIgnoreCase))
                         {
                             return RedirectToRoute("Homepage");
                         }
@@ -224,7 +221,7 @@ namespace Smartstore.Web.Controllers
                 return RedirectToRoute("RegisterResult", new { resultId = (int)UserRegistrationType.Disabled });
             }
 
-            ViewBag.ReturnUrl = returnUrl;
+            ViewBag.ReturnUrl = Url.IsLocalUrl(returnUrl) ? returnUrl : string.Empty;
 
             var model = new RegisterModel();
             await PrepareRegisterModelAsync(model);
@@ -259,9 +256,15 @@ namespace Smartstore.Web.Controllers
                 ModelState.AddModelError(string.Empty, captchaError);
             }
 
+            // TODO: (mh) Password validation is already performed in the UserManager.AddPasswordAsync method. Refactor workflow.
             foreach (var validator in _userManager.PasswordValidators)
             {
                 AddModelStateErrors(await validator.ValidateAsync(_userManager, customer, model.Password));
+            }
+
+            if (!Url.IsLocalUrl(returnUrl))
+            {
+                returnUrl = string.Empty;
             }
 
             ViewData["ReturnUrl"] = returnUrl;
@@ -433,14 +436,14 @@ namespace Smartstore.Web.Controllers
             if (_customerSettings.ShowCustomersJoinDate)
             {
                 info.JoinDateEnabled = true;
-                info.JoinDate = Services.DateTimeHelper.ConvertToUserTime(customer.CreatedOnUtc, DateTimeKind.Utc).ToString("f");
+                info.JoinDate = _dateTimeHelper.ConvertToUserTime(customer.CreatedOnUtc, DateTimeKind.Utc);
             }
 
             // Birth date.
             if (_customerSettings.DateOfBirthEnabled && customer.BirthDate.HasValue)
             {
                 info.DateOfBirthEnabled = true;
-                info.DateOfBirth = customer.BirthDate.Value.ToString("D");
+                info.DateOfBirth = _dateTimeHelper.ConvertToUserTime(customer.BirthDate.Value, DateTimeKind.Utc);
             }
 
             var model = new ProfileIndexModel
@@ -475,6 +478,12 @@ namespace Smartstore.Web.Controllers
             if (!customer.IsRegistered())
             {
                 return ChallengeOrForbid();
+            }
+
+            // TODO: (mh) Password validation is already performed in the UserManager.ChangePasswordAsync method. Refactor workflow.
+            foreach (var validator in _userManager.PasswordValidators)
+            {
+                AddModelStateErrors(await validator.ValidateAsync(_userManager, customer, model.NewPassword));
             }
 
             if (ModelState.IsValid)
@@ -562,6 +571,12 @@ namespace Smartstore.Web.Controllers
         public async Task<IActionResult> PasswordRecoveryConfirmPOST(PasswordRecoveryConfirmModel model)
         {
             var customer = await _userManager.FindByEmailAsync(model.Email);
+
+            // TODO: (mh) Password validation is already performed in the UserManager.ResetPasswordAsync method. Refactor workflow.
+            foreach (var validator in _userManager.PasswordValidators)
+            {
+                AddModelStateErrors(await validator.ValidateAsync(_userManager, customer, model.NewPassword));
+            }
 
             if (ModelState.IsValid)
             {
@@ -674,7 +689,7 @@ namespace Smartstore.Web.Controllers
                     NotifyError(T("Account.Register.Result.Disabled"));
                 }
 
-                return RedirectToLocal(returnUrl);
+                return RedirectToReferrer(returnUrl, () => RedirectToRoute("Login"));
             }
         }
 
@@ -700,7 +715,7 @@ namespace Smartstore.Web.Controllers
         [LocalizedRoute("/access-denied", Name = "AccessDenied")]
         public IActionResult AccessDenied(string returnUrl = null)
         {
-            throw new AccessDeniedException(null, returnUrl);
+            throw new AccessDeniedException(null, Url.IsLocalUrl(returnUrl) ? returnUrl : null);
         }
 
         #endregion
@@ -784,7 +799,7 @@ namespace Smartstore.Web.Controllers
                     await _signInManager.SignInAsync(customer, isPersistent: false);
 
                     var redirectUrl = Url.RouteUrl("RegisterResult", new { resultId = (int)UserRegistrationType.Standard });
-                    if (returnUrl.HasValue())
+                    if (Url.IsLocalUrl(returnUrl))
                     {
                         redirectUrl = _webHelper.ModifyQueryString(redirectUrl, "returnUrl=" + returnUrl.UrlEncode());
                     }
@@ -816,7 +831,7 @@ namespace Smartstore.Web.Controllers
             }
 
             if (!customer.IsRegistered())
-            {               
+            {
                 var registeredRole = await _db.CustomerRoles
                     .AsNoTracking()
                     .Where(x => x.SystemName == SystemCustomerRoleNames.Registered)
@@ -998,11 +1013,6 @@ namespace Smartstore.Web.Controllers
             await _userManager.RemoveFromRoleAsync(customer, SystemCustomerRoleNames.Guests);
         }
 
-        private ActionResult RedirectToLocal(string returnUrl)
-        {
-            return RedirectToReferrer(returnUrl, () => RedirectToRoute("Login"));
-        }
-
         private void AddModelStateErrors(IdentityResult result)
         {
             if (!result.Succeeded)
@@ -1012,7 +1022,7 @@ namespace Smartstore.Web.Controllers
             }
         }
 
-        private async Task FinalizeLoginAsync(Customer guest, Customer registered, bool logActivity) 
+        private async Task FinalizeLoginAsync(Customer guest, Customer registered, bool logActivity)
         {
             await _shoppingCartService.MigrateCartAsync(guest, registered);
             await Services.EventPublisher.PublishAsync(new CustomerSignedInEvent { Customer = registered });

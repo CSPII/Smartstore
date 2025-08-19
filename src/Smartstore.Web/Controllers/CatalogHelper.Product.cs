@@ -792,6 +792,7 @@ namespace Smartstore.Web.Controllers
             var query = ctx.VariantQuery;
             var productBundleItem = ctx.ProductBundleItem;
             var bundleItemId = productBundleItem?.Id ?? 0;
+            var language = _workContext.WorkingLanguage;
             var isBundlePricing = productBundleItem != null && !productBundleItem.BundleProduct.BundlePerItemPricing;
             var checkAvailability = product.AttributeChoiceBehaviour == AttributeChoiceBehaviour.GrayOutUnavailable;
             var attributes = await ctx.BatchContext.Attributes.GetOrLoadAsync(product.Id);
@@ -845,8 +846,8 @@ namespace Smartstore.Web.Controllers
                     ctx.Customer);
             }
 
-            model.ProductUrl = await _productUrlHelper.GetAbsoluteProductUrlAsync(product.Id, model.SeName, ctx.SelectedAttributes);
             model.SelectedCombination = await _productAttributeMaterializer.FindAttributeCombinationAsync(product.Id, ctx.SelectedAttributes);
+            model.ProductUrl = await _productUrlHelper.GetProductPathAsync(product.Id, model.SeName, ctx.SelectedAttributes);
 
             if ((model.SelectedCombination != null && !model.SelectedCombination.IsActive) ||
                 (product.AttributeCombinationRequired && model.SelectedCombination == null))
@@ -1391,7 +1392,7 @@ namespace Smartstore.Web.Controllers
             model.ProductId = product.Id;
             model.ProductName = product.GetLocalized(x => x.Name);
             model.ProductSeName = await product.GetActiveSlugAsync();
-            model.CanCurrentCustomerLeaveReview = _catalogSettings.AllowAnonymousUsersToReviewProduct || !_services.WorkContext.CurrentCustomer.IsGuest();
+            model.CanReview = _catalogSettings.AllowAnonymousUsersToReviewProduct || !_services.WorkContext.CurrentCustomer.IsGuest();
             model.DisplayCaptcha = _captchaSettings.CanDisplayCaptcha && _captchaSettings.ShowOnProductReviewPage;
             model.ShowVerfiedPurchaseBadge = _catalogSettings.ShowVerfiedPurchaseBadge;
 

@@ -4,22 +4,26 @@
 
 @{
     var list = Model.Parent;
+    var numColorAttributes = Model.ColorAttributes?.Count ?? 0;
 }
 
 <div class="art-variant-info">
-    <div sm-if="Model.ColorAttributes != null && Model.ColorAttributes.Any()" class="art-color-opts">
-        @foreach (var clr in Model.ColorAttributes)
-        {
-            <a href="@clr.ProductUrl" class="art-color-opt" style="background-color: @clr.Color" 
-                title="@T("Products.ChooseColorX", clr.FriendlyName, clr.AttributeName)"></a>
-        }
-    </div>
-    <div sm-if="Model.Attributes.Any()" class="art-more-opts">
+    @if (numColorAttributes > 0)
+    {
+        <div class="art-color-opts" role="listbox" aria-orientation="horizontal" aria-label="@Model.ColorAttributes[0].AttributeName">
+            @foreach (var clr in Model.ColorAttributes)
+            {
+                var title = T("Products.ChooseColorX", clr.FriendlyName, clr.AttributeName);
+                <a href="@clr.ProductUrl" class="art-color-opt" style="background-color: @clr.Color" role="option" aria-label="@title" title="@title"></a>
+            }
+        </div>
+    }
+    <div sm-if="Model.Attributes.Count > 0" class="art-more-opts">
         <span class="bidi-embed@(list.ViewMode == ProductSummaryViewMode.List ? "" : " d-block")">
             @T(Model.Attributes.Count == 1 ? "Products.PlusOption" : "Products.PlusOptions"):
         </span>
-        <a href="@Model.DetailUrl" class="font-weight-medium bidi-embed" sm-language-attributes-for="Model.Attributes[0].Name">
-            @string.Join(", ", Model.Attributes.Select(x => x.Name.ToHtmlString())).Truncate(50, "...")
+        <a href="@Model.DetailUrl" class="art-more-opt-link d-block text-truncate">
+            <span class="fwm bidi-embed" sm-language-attributes-for="Model.Attributes[0].Name">@string.Join(", ", Model.Attributes.Select(x => x.Name.ToHtmlString())).Truncate(50, "...")</span>
         </a>
     </div>
 </div>

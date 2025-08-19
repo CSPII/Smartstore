@@ -29,13 +29,13 @@
                     <div class="art-picture-block">
                         @if (image.HasImage())
                         {
-                            <a class="art-picture img-center-container" href="@item.Url" title="@linkTitle">
-                                <img sm-model="image" loading="lazy" />
+                            <a class="art-picture img-center-container" href="@item.Url" title="@linkTitle" aria-hidden="true" tabindex="-1">
+                                <img sm-model="image" loading="lazy" attr-alt='(image.Alt.IsEmpty(), item.Name)' />
                             </a>
                         }
                     </div>
                     <div class="art-genericname">
-                        <a href="@item.Url" title="@linkTitle">
+                        <a class="art-name-link" href="@item.Url" title="@linkTitle">
                             <span sm-language-attributes-for="item.Name">@item.Name</span>
                         </a>
                     </div>

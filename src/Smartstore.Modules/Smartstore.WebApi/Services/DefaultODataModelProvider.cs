@@ -53,6 +53,7 @@ namespace Smartstore.Web.Api
             builder.EntitySet<GiftCardUsageHistory>("GiftCardUsageHistory");
             builder.EntitySet<Language>("Languages");
             builder.EntitySet<LocalizedProperty>("LocalizedProperties");
+            builder.EntitySet<LocaleStringResource>("LocaleStringResources");
             builder.EntitySet<MeasureDimension>("MeasureDimensions");
             builder.EntitySet<MeasureWeight>("MeasureWeights");
             builder.EntitySet<OrderNote>("OrderNotes");
@@ -410,11 +411,13 @@ namespace Smartstore.Web.Api
             var set = builder.EntitySet<PaymentMethod>("PaymentMethods");
 
             var getAllPaymentMethods = set.EntityType.Collection.Function(nameof(PaymentMethodsController.GetAllPaymentMethods))
-                .ReturnsCollection<string>();
+                .ReturnsCollection<ProviderInfo<PaymentMethodInfo>>();
 
             getAllPaymentMethods.Parameter<bool>("active")
                 .Required();
             getAllPaymentMethods.Parameter<int>("storeId")
+                .Optional();
+            getAllPaymentMethods.Parameter<int>("languageId")
                 .Optional();
         }
 

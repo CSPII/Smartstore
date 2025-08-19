@@ -29,6 +29,10 @@
     }
 }
 
+<a href="#content-center" id="skip-to-content" class="btn btn-primary btn-lg rounded-pill">
+    @T("Common.SkipToMainContent")
+</a>
+
 <div id="page">
     <div class="canvas-blocker canvas-slidable"></div>
 
@@ -50,7 +54,7 @@
                 </div>
             </div>
             <div class="megamenu-section d-none d-lg-block">
-                <nav class="navbar @(Display.GetThemeVariable<bool>("inverse-navbar") ? "navbar-inverse" : "navbar-light")">
+                <nav class="navbar @(Display.GetThemeVariable<bool>("inverse-navbar") ? "navbar-inverse" : "navbar-light")" aria-label="@T("Aria.Label.MainNavigation")">
                     <div class="container megamenu-container">
                         <menu name="Main" template="Main" />
                     </div>
@@ -109,7 +113,7 @@
         <zone name="page-end"></zone>
     </div>
 
-    <a href="#" id="scroll-top" class="scrollto d-flex align-items-center justify-content-center shadow-sm">
+    <a href="#" id="scroll-top" class="scrollto d-flex align-items-center justify-content-center shadow-sm" aria-label="@T("Common.ScrollUp")">
         <i class="fa fa-lg fa-angle-up"></i>
     </a>
 </div>

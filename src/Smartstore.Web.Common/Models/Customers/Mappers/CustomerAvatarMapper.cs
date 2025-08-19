@@ -2,6 +2,7 @@
 using Smartstore.ComponentModel;
 using Smartstore.Core.Content.Media;
 using Smartstore.Core.Identity;
+using Smartstore.Core.Localization;
 
 namespace Smartstore.Web.Models.Customers
 {
@@ -60,6 +61,8 @@ namespace Smartstore.Web.Models.Customers
             _mediaSettings = mediaSettings;
         }
 
+        public Localizer T { get; set; } = NullLocalizer.Instance;
+
         protected override void Map(Customer from, CustomerAvatarModel to, dynamic parameters = null)
             => throw new NotImplementedException();
 
@@ -73,8 +76,8 @@ namespace Smartstore.Web.Models.Customers
             to.Id = from.Id;
             to.Large = (bool)(parameters.LargeAvatar == true);
             to.DisplayRing = (bool)(parameters.DisplayRing == true);
-            to.UserName = parameters.UserName as string;
             to.AvatarPictureSize = _mediaSettings.AvatarPictureSize;
+            to.UserName = (parameters.UserName as string).NullEmpty() ?? from.FormatUserName(_customerSettings, T, false);
 
             if (from.IsGuest())
             {
@@ -83,32 +86,8 @@ namespace Smartstore.Web.Models.Customers
             }
             else
             {
-                to.AllowViewingProfiles = _customerSettings.AllowViewingProfiles;
-
-                var userName = "?";
-
-                if (from.FirstName.HasValue())
-                {
-                    userName = from.FirstName;
-                }
-                else if (from.LastName.HasValue())
-                {
-                    userName = from.LastName;
-                }
-                else if (from.FullName.HasValue())
-                {
-                    userName = from.FullName;
-                }
-                else if (from.Username.HasValue())
-                {
-                    userName = from.Username;
-                }
-                else if (to.UserName.HasValue())
-                {
-                    userName = to.UserName;
-                }
-
-                to.AvatarLetter = userName.ToUpper().TrimStart()[0];
+                to.AllowViewingProfiles = _customerSettings.AllowViewingProfiles && !from.Deleted;
+                to.AvatarLetter = GetAvatarLetter(from, to.UserName);
 
                 if (_customerSettings.AllowCustomersToUploadAvatars)
                 {
@@ -120,6 +99,20 @@ namespace Smartstore.Web.Models.Customers
                     to.AvatarColor = from.GenericAttributes.AvatarColor;
                 }
             }
+        }
+
+        private static char GetAvatarLetter(Customer customer, string userName)
+        {
+            var nameForLetter = customer.FirstName.NullEmpty()
+                ?? customer.LastName.NullEmpty()
+                ?? customer.FullName.NullEmpty()
+                ?? customer.Username.NullEmpty()
+                ?? userName.NullEmpty()
+                ?? "?";
+
+            return nameForLetter
+                .ToUpper()
+                .TrimStart()[0];
         }
     }
 }

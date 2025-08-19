@@ -38,8 +38,8 @@
                 : '[data-toggle=tooltip], .tooltip-toggle';
             ctx.tooltip({
                 selector: selector,
-                animation: false,
-                trigger: 'hover'
+                animation: true,
+                trigger: 'hover focus'
             });
         },
         // Popovers
@@ -68,11 +68,11 @@
         },
         // Newsletter subsription
         function (ctx) {
-            var newsletterContainer = $(".footer-newsletter");
-            if (newsletterContainer.length > 0) {
-                var url = newsletterContainer.data("subscription-url");
+            let newsletterForm = $('#newsletter-form');
+            if (newsletterForm.length > 0) {
+                newsletterForm.find('#newsletter-subscribe-button').on("click", function (e) {
+                    e.preventDefault();
 
-                newsletterContainer.find('#newsletter-subscribe-button').on("click", function () {
                     var email = $("#newsletter-email").val();
                     var subscribe = 'true';
                     var resultDisplay = $("#newsletter-result-block");
@@ -86,7 +86,7 @@
                     $.ajax({
                         cache: false,
                         type: "POST",
-                        url: url,
+                        url: newsletterForm.attr('action'),
                         data: { "subscribe": subscribe, "email": email, "GdprConsent": subscribe == 'true' ? gdprConsent : true },
                         success: function (data) {
                             resultDisplay.html(data.Result);
@@ -95,13 +95,14 @@
                                 resultDisplay.removeClass("alert-danger d-none").addClass("alert-success d-block");
                             }
                             else {
-                                if (data.Result != "")
+                                if (data.Result != "") {
                                     resultDisplay.removeClass("alert-success d-none").addClass("alert-danger d-block").fadeIn("slow").delay(2000).fadeOut("slow");
+                                }
                             }
                         },
                         error: function (xhr, ajaxOptions, thrownError) {
                             resultDisplay.empty()
-                                .text(newsletterContainer.data('subscription-failure'))
+                                .text(newsletterForm.data('subscription-failure'))
                                 .removeClass("alert-success d-none")
                                 .addClass("alert-danger d-block");
                         }
@@ -115,10 +116,40 @@
             if ($.fn.slick === undefined)
                 return;
 
+            const slide = (slick) => {
+                //// Handle accessibility attributes
+                //slick.$slides.each((_, el) => {
+                //    const art = $(el);
+                //    const accessibles = art.find('a, button');
+                //    if (art.hasClass('slick-active')) {
+                //        art.removeAttr('tabindex');
+                //    }
+                //    else {
+                //        art.attr('tabindex', '-1');
+                //    }
+                //});
+            };
+
             ctx.find('.artlist-carousel > .artlist-grid').each(function (i, el) {
-                var list = $(this);
-                var slidesToShow = list.data("slides-to-show");
-                var slidesToScroll = list.data("slides-to-scroll");
+                const list = $(this);
+                const slidesToShow = list.data("slides-to-show");
+                const slidesToScroll = list.data("slides-to-scroll");
+                const labelPrev = list.data("label-prev") || '';
+                const labelNext = list.data("label-next") || '';
+
+                if (list.hasClass('slick-initialized')) {
+                    list.slick('destroy');
+                    list.off('.slick');
+                }
+
+                list.on('init.slick', (e, slick) => {
+                    slick.$slider
+                        // Move role=list from .artlist to the slick track element to comply with WCAG.
+                        .removeAttr('role')
+                        .find('.slick-track').attr('role', 'list')
+                        // Remove any .sr-toggle in .art
+                        .find('> .art > .sr-toggle').remove();
+                });
 
                 list.slick({
                     rtl: $("html").attr("dir") == "rtl",
@@ -128,13 +159,15 @@
                     useCSS: true,
                     useTransform: true,
                     waitForAnimate: true,
-                    prevArrow: '<button type="button" class="btn btn-secondary slick-prev"><i class="fa fa-chevron-left"></i></button>',
-                    nextArrow: '<button type="button" class="btn btn-secondary slick-next"><i class="fa fa-chevron-right"></i></button>',
+                    prevArrow: `<button type="button" class="btn btn-secondary slick-prev" aria-label="${labelPrev}"><i class="fa fa-chevron-left" aria-hidden="true"></i></button>`,
+                    nextArrow: `<button type="button" class="btn btn-secondary slick-next" aria-label="${labelNext}"><i class="fa fa-chevron-right" aria-hidden="true"></i></button>`,
                     respondTo: 'slider',
                     slidesToShow: slidesToShow || 6,
                     slidesToScroll: slidesToScroll || 6,
                     autoplay: list.data("autoplay"),
                     infinite: list.data("infinite"),
+                    accessibility: true,
+                    atomicTabbing: false,
                     responsive: [
                         {
                             breakpoint: 280,

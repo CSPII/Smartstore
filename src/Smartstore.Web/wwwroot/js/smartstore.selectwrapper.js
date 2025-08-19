@@ -335,7 +335,8 @@
                     }
 
                     if (imageUrl) {
-                        return $(preHtml + '<span class="select2-option choice-item' + classes + '"' + attr('title', title) + '><img class="choice-item-img" src="' + imageUrl + '" />' + text + '</span>' + postHtml);
+                        const img = `<img src="${imageUrl}" class="choice-item-img" alt="${text}" />`;
+                        return $(preHtml + '<span class="select2-option choice-item' + classes + '"' + attr('title', title) + '>' + img + text + '</span>' + postHtml);
                     }
                     else if (color) {
                         return $(preHtml + '<span class="select2-option choice-item' + classes + '"' + attr('title', title) + '><span class="choice-item-color" style="background-color: ' + color + '"></span>' + text + '</span>' + postHtml);
@@ -468,6 +469,29 @@
                 // move special "autowidth" class to plugin container,
                 // so we are able to omit min-width per css
                 sel.data("select2").$container.addClass("autowidth");
+            }
+
+            // WCAG.
+            const $sel = sel.data("select2").$container.find('.select2-selection');
+            if ($sel.length) {
+                const labelledBy = sel.aria("labelledby");
+                if (!_.isEmpty(labelledBy)) {
+                    // Apply aria-labelledby attribute of the native select.
+                    $sel.aria('labelledby', labelledBy);
+                }
+                else {
+                    // Apply label text of native select (if any).
+                    const id = sel.attr('id') || sel.attr('name');
+                    const $elLabel = $('label[for="' + id + '"]');
+                    if ($elLabel) {
+                        $sel.aria('label', $elLabel.text())
+                            .removeAttr('aria-labelledby');
+                    }
+                }
+
+                // Remove role from rendered selection element. It is not editable.
+                $sel.find('.select2-selection__rendered[role="textbox"]')
+                    .removeAttr('role aria-readonly');
             }
 
             function getPlaceholder() {

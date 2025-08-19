@@ -21,6 +21,7 @@ using Smartstore.Core.Security;
 using Smartstore.Core.Seo;
 using Smartstore.Engine.Modularity;
 using Smartstore.IO;
+using Smartstore.Utilities;
 using Smartstore.Web.Models.Common;
 using Smartstore.Web.Models.Customers;
 using Smartstore.Web.Rendering;
@@ -655,20 +656,20 @@ namespace Smartstore.Web.Controllers
             {
                 var itemModel = new CustomerDownloadableProductsModel.DownloadableProductsModel
                 {
+                    Id = item.Id,
                     OrderItemGuid = item.OrderItemGuid,
                     OrderId = item.OrderId,
                     CreatedOn = _dateTimeHelper.ConvertToUserTime(item.Order.CreatedOnUtc, DateTimeKind.Utc),
                     ProductName = item.Product.GetLocalized(x => x.Name),
                     ProductSeName = await item.Product.GetActiveSlugAsync(),
                     ProductAttributes = item.AttributeDescription,
-                    ProductId = item.ProductId
+                    ProductId = item.ProductId,
+                    IsDownloadAllowed = _downloadService.IsDownloadAllowed(item)
                 };
 
                 itemModel.ProductUrl = await _productUrlHelper.GetProductPathAsync(item.ProductId, itemModel.ProductSeName, item.AttributeSelection);
 
                 model.Items.Add(itemModel);
-
-                itemModel.IsDownloadAllowed = _downloadService.IsDownloadAllowed(item);
 
                 if (itemModel.IsDownloadAllowed)
                 {
@@ -680,7 +681,7 @@ namespace Smartstore.Web.Controllers
                         .ToListAsync())
                         .OrderByVersion();
 
-                    itemModel.DownloadVersions = downloads
+                    itemModel.DownloadVersions = [.. downloads
                         .Select(x => new DownloadVersion
                         {
                             DownloadId = x.Id,
@@ -688,8 +689,7 @@ namespace Smartstore.Web.Controllers
                             FileName = x.UseDownloadUrl ? x.DownloadUrl : x.MediaFile.Name,
                             DownloadGuid = x.DownloadGuid,
                             Changelog = x.Changelog
-                        })
-                        .ToList();
+                        })];
                 }
 
                 if (_downloadService.IsLicenseDownloadAllowed(item))
@@ -775,7 +775,7 @@ namespace Smartstore.Web.Controllers
             long maxFileSize = _customerSettings.MaxAvatarFileSize * 1024;
             var customer = Services.WorkContext.CurrentCustomer;
             var success = false;
-            string avatarUrl = null;
+            string avatar = null;
 
             if (customer.IsRegistered() && _customerSettings.AllowCustomersToUploadAvatars)
             {
@@ -800,8 +800,11 @@ namespace Smartstore.Web.Controllers
                             customer.GenericAttributes.AvatarPictureId = newAvatar.Id;
                             await _db.SaveChangesAsync();
 
-                            avatarUrl = _mediaService.GetUrl(newAvatar, _mediaSettings.AvatarPictureSize, null, false);
-                            success = avatarUrl.HasValue();
+                            var model = await customer.MapAsync(null, true, true);
+                            avatar = await InvokePartialViewAsync("Customer.Avatar", model);
+                            success = true;
+
+                            NotifyInfo(T("Account.Avatar.AvatarChanged"));
                         }
                     }
                     else
@@ -811,28 +814,34 @@ namespace Smartstore.Web.Controllers
                 }
             }
 
-            return Json(new { success, avatarUrl });
+            return Json(new { success, avatar });
         }
 
         [HttpPost]
         public async Task<IActionResult> RemoveAvatar()
         {
+            string avatar = null;
             var customer = Services.WorkContext.CurrentCustomer;
             if (customer.IsRegistered() && _customerSettings.AllowCustomersToUploadAvatars)
             {
-                var avatar = await _db.MediaFiles.FindByIdAsync((int)customer.GenericAttributes.AvatarPictureId);
-                if (avatar != null)
+                var file = await _db.MediaFiles.FindByIdAsync((int)customer.GenericAttributes.AvatarPictureId);
+                if (file != null)
                 {
-                    await _mediaService.DeleteFileAsync(avatar, true);
+                    await _mediaService.DeleteFileAsync(file, true);
                 }
 
                 customer.GenericAttributes.AvatarPictureId = 0;
                 customer.GenericAttributes.AvatarColor = null;
 
                 await _db.SaveChangesAsync();
+
+                var model = await customer.MapAsync(null, true, true);
+                avatar = await InvokePartialViewAsync("Customer.Avatar", model);
+
+                NotifyInfo(T("Account.Avatar.AvatarRemoved"));
             }
 
-            return Json(new { success = true });
+            return Json(new { success = true, avatar });
         }
 
         #endregion
@@ -852,22 +861,24 @@ namespace Smartstore.Web.Controllers
                 return ChallengeOrForbid();
             }
 
-            var model = new CustomerRewardPointsModel();
-            foreach (var rph in customer.RewardPointsHistory.OrderByDescending(rph => rph.CreatedOnUtc).ThenByDescending(rph => rph.Id))
-            {
-                model.RewardPoints.Add(new CustomerRewardPointsModel.RewardPointsHistoryModel()
-                {
-                    Points = rph.Points,
-                    PointsBalance = rph.PointsBalance,
-                    Message = rph.Message,
-                    CreatedOn = _dateTimeHelper.ConvertToUserTime(rph.CreatedOnUtc, DateTimeKind.Utc)
-                });
-            }
-
-            int rewardPointsBalance = customer.GetRewardPointsBalance();
+            var rewardPointsBalance = customer.GetRewardPointsBalance();
             var rewardPointsAmountBase = _orderCalculationService.ConvertRewardPointsToAmount(rewardPointsBalance);
             var rewardPointsAmount = _currencyService.ConvertFromPrimaryCurrency(rewardPointsAmountBase.Amount, Services.WorkContext.WorkingCurrency);
-            model.RewardPointsBalanceFormatted = T("RewardPoints.CurrentBalance", rewardPointsBalance, rewardPointsAmount.ToString());
+
+            var model = new CustomerRewardPointsModel
+            {
+                RewardPointsBalanceFormatted = T("RewardPoints.CurrentBalance", ConvertUtility.ToHtmlDisplayString(rewardPointsBalance), rewardPointsAmount.ToString()),
+                RewardPoints = [.. customer.RewardPointsHistory
+                    .OrderByDescending(rph => rph.CreatedOnUtc)
+                    .ThenByDescending(rph => rph.Id)
+                    .Select(x => new CustomerRewardPointsModel.RewardPointsHistoryModel()
+                    {
+                        Points = x.Points,
+                        PointsBalance = x.PointsBalance,
+                        Message = x.Message,
+                        CreatedOn = _dateTimeHelper.ConvertToUserTime(x.CreatedOnUtc, DateTimeKind.Utc)
+                    })]
+            };
 
             return View(model);
         }

@@ -1,4 +1,6 @@
+using Org.BouncyCastle.Utilities;
 using Smartstore.Data.Migrations;
+using static Smartstore.Core.Security.Permissions;
 
 namespace Smartstore.Core.Data.Migrations
 {
@@ -20,6 +22,7 @@ namespace Smartstore.Core.Data.Migrations
 
         public void MigrateLocaleResources(LocaleResourcesBuilder builder)
         {
+            
         }
     }
 }
