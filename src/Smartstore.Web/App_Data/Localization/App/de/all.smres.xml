@@ -2338,6 +2338,9 @@
 	<LocaleResource Name="Admin.Catalog.Products.Fields.HasPreviewPicture">
 		<Value>Erstes Bild aus Gallerie ausschließen</Value>
 	</LocaleResource>
+    <LocaleResource Name="Admin.Catalog.Products.Fields.ProductVideoUrl">
+        <Value>Eine Youtube Video-URL hinzufügen</Value>
+    </LocaleResource>
 	<LocaleResource Name="Admin.Catalog.Products.Fields.HasPreviewPicture.Hint">
 		<Value>Aktivieren Sie diese Option, wenn das erste Bild als Vorschau in Produktlisten, nicht aber in der Produktdetail-Gallerie angezeigt werden soll.</Value>
 	</LocaleResource>

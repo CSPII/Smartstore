@@ -180,6 +180,7 @@ namespace Smartstore.Web.Models.Catalog
         public string ProductShareCode { get; set; }
 
         public Dictionary<string, ActionItemModel> ActionItems { get; set; } = [];
+        public string ProductVideoUrl { get; set; }
 
         #region Nested Classes
 

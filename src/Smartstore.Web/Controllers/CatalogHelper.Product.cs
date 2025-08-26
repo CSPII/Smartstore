@@ -164,7 +164,8 @@ namespace Smartstore.Web.Controllers
                         productId = product.Id,
                         parentProductId = ctx.ParentProduct?.Id ?? null,
                         bundleItemId = ctx.ProductBundleItem?.Id ?? 0
-                    })
+                    }),
+                    ProductVideoUrl = product.ProductVideoUrl
                 };
 
                 // Determine which description to add the itemprop="description" attribute to, using Model.DescriptionPriority.
@@ -412,7 +413,7 @@ namespace Smartstore.Web.Controllers
                 }
 
                 model.MediaGalleryModel = PrepareProductDetailsMediaGalleryModel(
-                    files, model.Name, combinationFileIds, isAssociatedProduct, ctx.ProductBundleItem, combination);
+                    files, model.Name, combinationFileIds, isAssociatedProduct, ctx.ProductBundleItem, combination, model.ProductVideoUrl);
 
                 #endregion
 
@@ -1239,7 +1240,8 @@ namespace Smartstore.Web.Controllers
             ICollection<int> allCombinationImageIds,
             bool isAssociatedProduct,
             ProductBundleItem bundleItem = null,
-            ProductVariantAttributeCombination combination = null)
+            ProductVariantAttributeCombination combination = null,
+            string productVideoUrl = "")
         {
             var model = new MediaGalleryModel
             {
@@ -1249,7 +1251,8 @@ namespace Smartstore.Web.Controllers
                 ImageZoomEnabled = _mediaSettings.DefaultPictureZoomEnabled,
                 ImageZoomType = _mediaSettings.PictureZoomType,
                 ThumbSize = _mediaSettings.ProductThumbPictureSizeOnProductDetailsPage,
-                ImageSize = _mediaSettings.ProductDetailsPictureSize
+                ImageSize = _mediaSettings.ProductDetailsPictureSize,
+                ProductVideoUrl = productVideoUrl
             };
 
             if (isAssociatedProduct)

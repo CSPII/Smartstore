@@ -276,6 +276,10 @@ namespace Smartstore.Admin.Models.Catalog
         public ProductPictureModel AddPictureModel { get; set; } = new();
         public List<ProductMediaFile> ProductMediaFiles { get; set; } = [];
 
+        //Video Url.
+        [LocalizedDisplay("*ProductVideoUrl")]
+        public string ProductVideoUrl { get; set; }
+
         [UIHint("Discounts")]
         [AdditionalMetadata("multiple", true)]
         [AdditionalMetadata("discountType", DiscountType.AssignedToSkus)]

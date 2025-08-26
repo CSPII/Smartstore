@@ -948,6 +948,11 @@ namespace Smartstore.Core.Catalog.Products
 		/// </summary>
         public bool HasPreviewPicture { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating an optional video url to show as part of the product images.
+        /// </summary>
+        public string ProductVideoUrl { get; set; }
+
         private ICollection<ProductCategory> _productCategories;
         /// <summary>
         /// Gets or sets the product categories.

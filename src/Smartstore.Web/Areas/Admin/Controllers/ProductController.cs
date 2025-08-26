@@ -1,5 +1,6 @@
 ﻿using System.Linq.Dynamic.Core;
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
@@ -1925,6 +1926,7 @@ namespace Smartstore.Admin.Controllers
                 model.AllowCustomerReviews = true;
                 model.Published = true;
                 model.HasPreviewPicture = false;
+                model.ProductVideoUrl = "";
             }
         }
 
@@ -2138,7 +2140,6 @@ namespace Smartstore.Admin.Controllers
                         break;
                 }
             }
-
             await Services.EventPublisher.PublishAsync(new ModelBoundEvent(model, product, form));
         }
 
@@ -2328,6 +2329,17 @@ namespace Smartstore.Admin.Controllers
         private static void UpdateProductPictures(Product product, ProductModel model)
         {
             product.HasPreviewPicture = model.HasPreviewPicture;
+            if (!model.ProductVideoUrl.IsNullOrEmpty())
+            {
+                var match = new Regex(@"^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*").Match(model.ProductVideoUrl);
+                product.ProductVideoUrl = (match.Success && match.Groups[2].Length == 11)
+                    ? "https://www.youtube.com/embed/" + match.Groups[2].Value
+                    : "";
+            }
+            else
+            {
+                product.ProductVideoUrl = "";
+            }
         }
 
         private async Task UpdateDataOfExistingProductAsync(Product product, ProductModel model, bool editMode)
