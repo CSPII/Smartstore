@@ -2333,7 +2333,7 @@ namespace Smartstore.Admin.Controllers
             {
                 var match = new Regex(@"^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*").Match(model.ProductVideoUrl);
                 product.ProductVideoUrl = (match.Success && match.Groups[2].Length == 11)
-                    ? "https://www.youtube.com/embed/" + match.Groups[2].Value
+                    ? "https://www.youtube-nocookie.com/embed/" + match.Groups[2].Value
                     : "";
             }
             else

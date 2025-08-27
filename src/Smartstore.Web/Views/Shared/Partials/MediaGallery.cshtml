@@ -132,11 +132,31 @@
     {
         var lang = CultureInfo.CurrentCulture.TwoLetterISOLanguageName;
         <div class="gal-cell d-none d-md-block">
-            <div class="gal">
-                <div class="gal-item">
-                    <iframe class="w-100" style="height:338px" allowfullscreen src="@(Model.ProductVideoUrl + "?cc_load_policy=1&cc_lang_pref=" + lang + "&hl=" + lang)" />
-                </div>
-            </div>
+            <!-- Patch: Fixes "Illegal invocation" error caused by third-party scripts
+            Explanation:
+            - Some scripts incorrectly detach navigator.permissions.query and call it with a wrong context.
+            - This wrapper rebinds the function so all future calls work as expected.
+            - No functional or security side effects; original behavior is preserved. -->
+            <script>
+                (function() {
+                    if (navigator.permissions && navigator.permissions.query) {
+                        const originalQuery = navigator.permissions.query;
+                        navigator.permissions.query = function() {
+                            return originalQuery.apply(navigator.permissions, arguments);
+                        };
+                    }
+                })();
+            </script>
+            <iframe class="w-100"
+                    height="338"
+                    title="YouTube video player"
+                    frameborder="0"
+                    loading="lazy"
+                    src="@($"{Model.ProductVideoUrl}?rel=0&cc_load_policy=1&cc_lang_pref={lang}&hl={lang}")"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    referrerpolicy="no-referrer"
+                    allowfullscreen>
+            </iframe>
         </div>
     }
 </div>
@@ -146,7 +166,16 @@
     @if (!Model.ProductVideoUrl.IsNullOrEmpty())
     {
         var lang = CultureInfo.CurrentCulture.TwoLetterISOLanguageName;
-        <iframe class="w-100" style="height:282px" allowfullscreen src="@(Model.ProductVideoUrl + "?cc_load_policy=1&cc_lang_pref=" + lang + "&hl=" + lang)" />
+        <iframe class="w-100"
+                height="282"
+                title="YouTube video player"
+                frameborder="0"
+                loading="lazy"
+                src="@($"{Model.ProductVideoUrl}?rel=0&cc_load_policy=1&cc_lang_pref={lang}&hl={lang}")"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                referrerpolicy="no-referrer"
+                allowfullscreen>
+        </iframe>
     }
 </div>
 
