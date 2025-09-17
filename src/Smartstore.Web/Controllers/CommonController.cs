@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Parlot.Fluent;
 using Smartstore.Caching;
 using Smartstore.Core.Content.Media;
 using Smartstore.Core.Identity;
@@ -210,7 +211,7 @@ namespace Smartstore.Web.Controllers
 
             Services.WorkContext.WorkingStore = store;
 
-            return RedirectToReferrer(store.Url);
+            return Redirect(store.Url);
         }
 
         [CheckStoreClosed(false)]
