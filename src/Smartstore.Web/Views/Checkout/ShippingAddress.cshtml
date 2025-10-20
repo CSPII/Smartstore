@@ -60,10 +60,6 @@
                                             <span>@T("Address.Fields.PhoneNumber"):</span>
                                             <span>@item.PhoneNumber</span>
                                         </div>
-                                        <div sm-if="item.FaxEnabled && item.FaxNumber.HasValue()" class="fax">
-                                            <span>@T("Address.Fields.FaxNumber"):</span>
-                                            <span>@item.FaxNumber</span>
-                                        </div>
                                         <div class="address">
                                             @Html.Raw(item.FormattedAddress)
                                         </div>

@@ -163,26 +163,6 @@
                                 </div>
                             </form>
                         </div>
-
-                        <div sm-if="Model.ShowThemeSelector" class="col-12 col-md col-lg-12">
-                            <div class="theme-selector nav-collapsible">
-                                <h3 id="theme-selector-heading" 
-                                    class="footer-title nav-toggler collapsed h4"
-                                    data-toggle="collapse" 
-                                    data-target="#footer-themes" 
-                                    aria-controls="footer-themes" 
-                                    aria-expanded="false">
-                                    @Html.Raw(T("Footer.Themes"))
-                                </h3>
-                                <div id="footer-themes" class="content collapse nav-collapse" role="region" aria-labelledby="theme-selector-heading">
-                                    <div class="mb-3 mb-md-0">
-                                        @{
-                                            @await Component.InvokeAsync("StoreThemeSelector")
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <zone name="footer_col_4_after"></zone>

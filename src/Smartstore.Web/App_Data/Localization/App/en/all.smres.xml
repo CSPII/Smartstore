@@ -17237,7 +17237,7 @@ within the observation window, additional requests may be denied, even if type-s
 		<Value>Company</Value>
 	</LocaleResource>
 	<LocaleResource Name="Footer.Info">
-		<Value>Informations</Value>
+		<Value>Information</Value>
 	</LocaleResource>
 	<LocaleResource Name="Footer.Seals">
 		<Value>Seals &amp;amp; Logos</Value>

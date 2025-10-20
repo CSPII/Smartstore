@@ -45,6 +45,12 @@
         <div class="tab-pane fade" id="ocm-service" role="tabpanel" aria-labelledby="ocm-tab-service"></div>
     </div>
 
+    @* Alternative logout menu *@
+    <a href="/logout/" class="dropdown-item" rel="nofollow" style="padding:1rem;background-color:#F7F7F9;font-size:16px;">
+        <i class="fal fa-right-from-bracket fa-fw"></i>
+        <span>@T("Account.Logout")</span>
+    </a>
+
     <div sm-if="allowNavigation" class="offcanvas-menu-footer d-none">
         <div class="row xs-gutters justify-content-around">
             <div id="ocm-currency-selector" class="col d-none">

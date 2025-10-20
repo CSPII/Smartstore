@@ -154,7 +154,7 @@
                     loading="lazy"
                     src="@($"{Model.ProductVideoUrl}?rel=0&cc_load_policy=1&cc_lang_pref={lang}&hl={lang}")"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    referrerpolicy="no-referrer"
+                    refererpolicy=“cross-origin-with-strict-origin”
                     allowfullscreen>
             </iframe>
         </div>
@@ -173,7 +173,7 @@
                 loading="lazy"
                 src="@($"{Model.ProductVideoUrl}?rel=0&cc_load_policy=1&cc_lang_pref={lang}&hl={lang}")"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                referrerpolicy="no-referrer"
+                refererpolicy=“cross-origin-with-strict-origin”
                 allowfullscreen>
         </iframe>
     }
