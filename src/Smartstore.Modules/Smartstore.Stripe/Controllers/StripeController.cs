@@ -150,8 +150,10 @@ namespace Smartstore.StripeElements.Controllers
                         customer.Addresses.Add(address);
                         customer.BillingAddress = address;
                         customer.ShippingAddress = address;
-                        await _db.SaveChangesAsync();
                     }
+
+                    customer.GenericAttributes.SelectedPaymentMethod = StripeElementsProvider.SystemName;
+                    await _db.SaveChangesAsync();
                 }
 
                 var cart = await _shoppingCartService.GetCartAsync(storeId: Services.StoreContext.CurrentStore.Id);
@@ -292,12 +294,6 @@ namespace Smartstore.StripeElements.Controllers
                         {
                             redirectUrl = paymentIntent.NextAction.RedirectToUrl.Url;
                         }
-                        //else
-                        //{
-                        //    paymentRequest.NewPaymentStatus = settings.CaptureMethod == "automatic"
-                        //        ? PaymentStatus.Paid
-                        //        : PaymentStatus.Authorized;
-                        //}
 
                         success = true;
                         state.IsConfirmed = true;
@@ -342,7 +338,7 @@ namespace Smartstore.StripeElements.Controllers
             };
         }
 
-        public IActionResult RedirectionResult(string redirect_status)
+        public async Task<IActionResult> RedirectionResult(string redirect_status, string payment_intent)
         {
             var error = false;
             string message = null;
@@ -350,7 +346,12 @@ namespace Smartstore.StripeElements.Controllers
 
             //Logger.LogInformation($"Stripe redirection result: '{redirect_status}'");
 
-            if (success)
+            // INFO: In case of declined payment when checking card data with 3D Secure redirection
+            // we must check the status of the payment intend for 'requires_payment_method' which means the payment was declined.
+            var paymentIntentService = new PaymentIntentService();
+            PaymentIntent paymentIntent = await paymentIntentService.GetAsync(payment_intent);
+
+            if (success && paymentIntent.Status != "requires_payment_method")
             {
                 var state = _checkoutStateAccessor.CheckoutState.GetCustomState<StripeCheckoutState>();
                 if (state.PaymentIntent != null)
@@ -414,16 +415,28 @@ namespace Smartstore.StripeElements.Controllers
 
                     if (order != null)
                     {
+                        var settings = await Services.SettingFactory.LoadSettingsAsync<StripeSettings>(order.StoreId);
+
                         // INFO: This can also be a partial capture.
                         decimal convertedAmount = paymentIntent.Amount / 100M;
 
-                        var settings = await Services.SettingFactory.LoadSettingsAsync<StripeSettings>(order.StoreId);
-                        var completedPaymentStatus = settings.CaptureMethod == "automatic" ? PaymentStatus.Paid : PaymentStatus.Authorized;
-
                         // Check if full order amount was captured.
-                        order.PaymentStatus = order.OrderTotal == convertedAmount ? completedPaymentStatus : PaymentStatus.Pending;
-
-                        await _db.SaveChangesAsync();
+                        if (order.OrderTotal == convertedAmount)
+                        {
+                            if (settings.CaptureMethod == "automatic" && order.CanMarkOrderAsAuthorized())
+                            {
+                                await _orderProcessingService.MarkOrderAsPaidAsync(order);
+                            }
+                            else if (order.CanMarkOrderAsAuthorized())
+                            {
+                                await _orderProcessingService.MarkAsAuthorizedAsync(order);
+                            }
+                        }
+                        else
+                        {
+                            order.PaymentStatus = PaymentStatus.Pending;
+                            await _db.SaveChangesAsync();
+                        }
                     }
                 }
                 else if (stripeEvent.Type == EventTypes.ChargeRefunded)
@@ -433,19 +446,19 @@ namespace Smartstore.StripeElements.Controllers
 
                     if (order != null)
                     {
-                        // INFO: This can also be a partial refund.
                         decimal convertedAmount = charge.Amount / 100M;
 
-                        // Check if full order amount was refund.
-                        order.PaymentStatus = order.OrderTotal == convertedAmount ? PaymentStatus.Refunded : PaymentStatus.PartiallyRefunded;
-
-                        // Handle refunded amount.
-                        order.RefundedAmount = convertedAmount;
-
-                        // Write some infos into order notes.
-                        WriteOrderNotes(order, charge);
-                        
-                        await _db.SaveChangesAsync();
+                        if (order.OrderTotal == convertedAmount)
+                        {
+                            if (order.CanRefundOffline())
+                            {
+                                await _orderProcessingService.RefundOfflineAsync(order);
+                            }
+                        }
+                        else if (order.CanPartiallyRefundOffline(convertedAmount))
+                        {
+                            await _orderProcessingService.PartiallyRefundOfflineAsync(order, convertedAmount);
+                        }
                     }
                 }
                 else if (stripeEvent.Type == EventTypes.PaymentIntentCanceled || 
@@ -454,14 +467,9 @@ namespace Smartstore.StripeElements.Controllers
                     var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
                     var order = await GetStripeOrderAsync(paymentIntent.Id);
 
-                    if (order != null)
+                    if (order != null && order.CanVoidOffline())
                     {
-                        order.PaymentStatus = PaymentStatus.Voided;
-
-                        // Write some infos into order notes.
-                        WriteOrderNotes(order, paymentIntent.LatestCharge);
-
-                        await _db.SaveChangesAsync();
+                        await _orderProcessingService.VoidOfflineAsync(order);
                     }
                 }
                 else
@@ -499,11 +507,11 @@ namespace Smartstore.StripeElements.Controllers
         }
 
         // INFO: We leave this method in case we want to log further infos in future.
-        private static void WriteOrderNotes(Order order, Charge charge)
+        private void WriteOrderNotes(Order order, Charge charge)
         {
             if (charge != null)
             {
-                order.AddOrderNote($"Reason for Charge-ID {charge.Id}: {charge.Refunds.FirstOrDefault().Reason} - {charge.Description}", true);
+                _db.OrderNotes.Add(order, $"Reason for Charge-ID {charge.Id}: {charge.Refunds?.FirstOrDefault()?.Reason} - {charge.Description}", true);
             }
         }
     }

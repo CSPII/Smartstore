@@ -219,7 +219,25 @@ namespace Smartstore.Admin.Controllers
             }
             if (model.OrderNumber.HasValue())
             {
-                orderQuery = orderQuery.ApplySearchFilterFor(x => x.OrderNumber, model.OrderNumber);
+                var filters = new List<FilterExpression>();
+                if (int.TryParse(model.OrderNumber, out _) && FilterExpressionParser.TryParse<Order, int>(x => x.Id, model.OrderNumber, out var f1))
+                {
+                    filters.Add(f1);
+                }
+                if (FilterExpressionParser.TryParse<Order, string>(x => x.OrderNumber, model.OrderNumber, out var f2))
+                {
+                    filters.Add(f2);
+                }
+
+                if (filters.Count > 0)
+                {
+                    var compositeFilter = new FilterExpressionGroup(typeof(Order), [.. filters])
+                    {
+                        LogicalOperator = LogicalRuleOperator.Or
+                    };
+
+                    orderQuery = orderQuery.Where(compositeFilter).Cast<Order>();
+                }
             }
             if (model.PaymentId.HasValue())
             {
@@ -1351,7 +1369,10 @@ namespace Smartstore.Admin.Controllers
         [Permission(Permissions.Order.Read)]
         public async Task<IActionResult> AddressEdit(int addressId, int orderId)
         {
-            if (!await _db.Orders.AnyAsync(x => x.Id == orderId))
+            var order = await _db.Orders
+                .IncludeCustomer()
+                .FindByIdAsync(orderId, false);
+            if (order == null)
             {
                 return NotFound();
             }
@@ -1371,7 +1392,8 @@ namespace Smartstore.Admin.Controllers
                 OrderId = orderId
             };
 
-            await address.MapAsync(model.Address);
+            await address.MapAsync(model.Address, order.Customer, emailEnabled: true);
+            model.Username = order.Customer.Username;
 
             return View(model);
         }
@@ -1380,7 +1402,9 @@ namespace Smartstore.Admin.Controllers
         [Permission(Permissions.Order.Update)]
         public async Task<IActionResult> AddressEdit(OrderAddressModel model, bool continueEditing)
         {
-            var order = await _db.Orders.FindByIdAsync(model.OrderId);
+            var order = await _db.Orders
+                .IncludeCustomer()
+                .FindByIdAsync(model.OrderId);
             if (order == null)
             {
                 return NotFound();
@@ -1390,6 +1414,11 @@ namespace Smartstore.Admin.Controllers
             if (address == null)
             {
                 return NotFound();
+            }
+
+            if (order.Customer.IsGuest() && !model.Address.Email.IsEmail())
+            {
+                ModelState.AddModelError($"{nameof(model.Address)}.{nameof(model.Address.Email)}", T("Admin.Customers.Customers.Fields.Email.Required"));
             }
 
             if (ModelState.IsValid)
@@ -1406,12 +1435,12 @@ namespace Smartstore.Admin.Controllers
                     : RedirectToAction(nameof(Edit), new { id = order.Id });
             }
 
-            await address.MapAsync(model.Address);
+            await address.MapAsync(model.Address, order.Customer, emailEnabled: true);
+            model.Username = order.Customer.Username;
 
             return View(model);
         }
 
-        // INFO: shipment action methods moved to new ShipmentController and were renamed in some cases.
         #endregion
 
         #region Order notes
@@ -2069,7 +2098,7 @@ namespace Smartstore.Admin.Controllers
 
             if (order.BillingAddress != null)
             {
-                await order.BillingAddress.MapAsync(model.BillingAddress);
+                await order.BillingAddress.MapAsync(model.BillingAddress, order.Customer);
             }
 
             if (order.ShippingStatus != ShippingStatus.ShippingNotRequired)
@@ -2077,7 +2106,7 @@ namespace Smartstore.Admin.Controllers
                 var shipTo = order.ShippingAddress;
                 if (shipTo != null)
                 {
-                    model.ShippingAddress = await shipTo.MapAsync();
+                    model.ShippingAddress = await shipTo.MapAsync(order.Customer);
 
                     var googleAddressQuery = $"{shipTo.Address1} {shipTo.ZipPostalCode} {shipTo.City} {shipTo.Country?.Name ?? string.Empty}";
 
@@ -2214,7 +2243,7 @@ namespace Smartstore.Admin.Controllers
                     attributeModel.Values = [.. valueModels
                         .Select(x => (ChoiceItemModel)x)
                         .OrderBy(x => x.DisplayOrder)
-                        .ThenNaturalBy(x => x.Name)];
+                        .ThenNaturalBy(_catalogSettings.SortAttributesNaturally ? x => x.Name : null)];
                 }
 
                 model.ProductVariantAttributes.Add(attributeModel);
