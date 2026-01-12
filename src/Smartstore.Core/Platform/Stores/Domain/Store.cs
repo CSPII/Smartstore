@@ -161,6 +161,12 @@ namespace Smartstore.Core.Stores
         public string ContentDeliveryNetwork { get; set; }
 
         /// <summary>
+        /// Gets or sets the default country.
+        /// </summary>
+        [Column("DefaultCountry")]
+        public string DefaultCountry { get; set; }
+
+        /// <summary>
         /// Gets or sets the default currency identifier.
         /// </summary>
         [Column("PrimaryStoreCurrencyId")]

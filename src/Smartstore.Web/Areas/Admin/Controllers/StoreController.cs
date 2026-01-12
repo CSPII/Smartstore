@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Smartstore.Admin.Models.Store;
 using Smartstore.Admin.Models.Stores;
 using Smartstore.ComponentModel;
+using Smartstore.Core;
 using Smartstore.Core.Catalog.Attributes;
 using Smartstore.Core.Catalog.Brands;
 using Smartstore.Core.Catalog.Categories;
@@ -107,6 +108,12 @@ namespace Smartstore.Admin.Controllers
         [Permission(Permissions.Configuration.Store.Create)]
         public async Task<IActionResult> Create()
         {
+            if (!Services.WorkContext.CurrentCustomer.IsSuperAdmin())
+            {
+                //Only super admins can create stores
+                NotifyAccessDenied();
+                return RedirectToAction(nameof(List));
+            }
             await PrepareViewBag(null);
 
             var model = new StoreModel
@@ -217,7 +224,7 @@ namespace Smartstore.Admin.Controllers
         {
             var primaryCurrency = Services.CurrencyService.PrimaryCurrency;
             var authorizedStoreIds = await Services.StoreMappingService.GetCustomerAuthorizedStoreIdsAsync();
-            
+
             var customerStoreMappings = await Services.StoreMappingService.GetStoreMappingCollectionAsync(nameof(Customer), [.. _db.Customers.Select(x => x.Id)]);
             var productStoreMappings = await Services.StoreMappingService.GetStoreMappingCollectionAsync(nameof(Product), [.. _db.Products.Select(x => x.Id)]);
             var categoryStoreMappings = await Services.StoreMappingService.GetStoreMappingCollectionAsync(nameof(Category), [.. _db.Categories.Select(x => x.Id)]);
@@ -268,6 +275,16 @@ namespace Smartstore.Admin.Controllers
                 {
                     Text = x.GetLocalized(y => y.Name),
                     Value = x.Id.ToString()
+                })
+                .ToList();
+
+            var countries = await _db.Countries.AsNoTracking().ToListAsync();
+
+            ViewBag.Countries = countries
+                .Select(x => new SelectListItem
+                {
+                    Text = x.Name,
+                    Value = x.TwoLetterIsoCode
                 })
                 .ToList();
         }

@@ -84,6 +84,15 @@
     </div>
     <div class="adminRow">
         <div class="adminTitle">
+            <smart-label asp-for="DefaultCountry" />
+        </div>
+        <div class="adminData">
+            <select asp-for="DefaultCountry" asp-items="ViewBag.Countries"></select>
+            <span asp-validation-for="DefaultCountry"></span>
+        </div>
+    </div>
+    <div class="adminRow">
+        <div class="adminTitle">
             <smart-label asp-for="HtmlBodyId" />
         </div>
         <div class="adminData">

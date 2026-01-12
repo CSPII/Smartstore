@@ -8818,6 +8818,9 @@ within the observation window, additional requests may be denied, even if type-s
 	<LocaleResource Name="Admin.Configuration.Stores.Fields.ContentDeliveryNetwork.Hint">
 		<Value>The URL of your CDN, e.g. https://xxx.cloudfront.net or http://xxx.cloudflare.net. Setting this value will allow the site to serve static content like media through the CDN.</Value>
 	</LocaleResource>
+    <LocaleResource Name="Admin.Configuration.Stores.Fields.DefaultCountry">
+        <Value>Default country</Value>
+    </LocaleResource>
 	<LocaleResource Name="Admin.Configuration.Stores.Fields.DefaultCurrencyId">
 		<Value>Default currency</Value>
 	</LocaleResource>

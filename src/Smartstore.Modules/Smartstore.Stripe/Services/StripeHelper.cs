@@ -86,7 +86,7 @@ namespace Smartstore.StripeElements.Services
             // Prepare Stripe payment request object.
             var stripePaymentRequest = new StripePaymentRequest
             {
-                Country = _services.WorkContext.WorkingLanguage.UniqueSeoCode.ToUpper(),
+                Country = store.DefaultCountry,
                 Currency = currency.CurrencyCode.ToLower(),
                 Total = new StripePaymentItem
                 {

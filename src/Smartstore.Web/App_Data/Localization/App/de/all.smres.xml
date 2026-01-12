@@ -8643,6 +8643,9 @@ auch wenn die typspezifischen Limits nicht erreicht wurden. Ein leerer Wert bede
 	<LocaleResource Name="Admin.Configuration.Stores.Fields.ContentDeliveryNetwork.Hint">
 		<Value>Die URL eines CDN, z.B. https://xxx.cloudfront.net oder http://xxx.cloudflare.net. Diese Einstellung bewirkt, dass statische Mediendateien durch das CDN bereitgestellt werden.</Value>
 	</LocaleResource>
+    <LocaleResource Name="Admin.Configuration.Stores.Fields.DefaultCountry">
+        <Value>Standardland</Value>
+    </LocaleResource>
 	<LocaleResource Name="Admin.Configuration.Stores.Fields.DefaultCurrencyId">
 		<Value>Standardwährung</Value>
 	</LocaleResource>

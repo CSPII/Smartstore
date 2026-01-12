@@ -83,6 +83,9 @@ namespace Smartstore.Admin.Models.Stores
         [LocalizedDisplay("*ContentDeliveryNetwork")]
         public string ContentDeliveryNetwork { get; set; }
 
+        [LocalizedDisplay("*DefaultCountry")]
+        public string DefaultCountry { get; set; }
+
         [LocalizedDisplay("*DefaultCurrencyId")]
         public int DefaultCurrencyId { get; set; }
 
