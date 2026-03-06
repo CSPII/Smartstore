@@ -86,7 +86,10 @@
 
                     (async () => {
                         const { error, paymentMethod } = await stripe.createPaymentMethod({ elements });
-
+                        if (error) {
+                            displayNotification(error.message, 'error');
+                            return;
+                        }
                         $.ajax({
                             type: 'POST',
                             data: {

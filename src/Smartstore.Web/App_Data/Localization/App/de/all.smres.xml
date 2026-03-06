@@ -20849,4 +20849,7 @@ auch wenn die typspezifischen Limits nicht erreicht wurden. Ein leerer Wert bede
 	<LocaleResource Name="Wishlist.YourWishlistURL">
 		<Value>Ihre Wunschlisten-URL</Value>
 	</LocaleResource>
+    <LocaleResource Name="Stripe.IncorrectCardNumber">
+        <Value>Ihre Kartennummer ist falsch.</Value>
+    </LocaleResource>
 </Language>

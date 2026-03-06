@@ -246,7 +246,7 @@ namespace Smartstore.StripeElements.Controllers
                         PaymentIntent paymentIntent = null;
 
                         var shippingOption = customer.GenericAttributes.Get<ShippingOption>(SystemCustomerAttributeNames.SelectedShippingOption, store.Id);
-                        var shipping = await GetShippingAddressAsync(customer, shippingOption.Name);
+                        var shipping = await GetShippingAddressAsync(customer, shippingOption?.Name);
 
                         if (state.PaymentIntent == null)
                         {

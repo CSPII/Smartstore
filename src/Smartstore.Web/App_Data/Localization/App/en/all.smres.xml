@@ -21163,4 +21163,7 @@ within the observation window, additional requests may be denied, even if type-s
 	<LocaleResource Name="Wishlist.YourWishlistURL">
 		<Value>Your wishlist URL for sharing</Value>
 	</LocaleResource>
+    <LocaleResource Name="Stripe.IncorrectCardNumber">
+        <Value>Your card number is incorrect.</Value>
+    </LocaleResource>
 </Language>
