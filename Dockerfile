@@ -16,6 +16,12 @@ COPY nuget.config ./
 # Create Modules dir if missing
 RUN mkdir /app/src/Smartstore.Web/Modules -p -v
 
+# Rebuild the checked-in module builder for .NET 10
+RUN dotnet publish src/Smartstore.Build/Smartstore.ModuleBuilder/src/Smartstore.ModuleBuilder.csproj \
+    -c Release \
+    -o /tmp/smartstore-modulebuilder && \
+    cp -a /tmp/smartstore-modulebuilder/. /app/src/Smartstore.Build/Smartstore.ModuleBuilder/
+
 # Build
 RUN dotnet build $SOLUTION -c Release
 
