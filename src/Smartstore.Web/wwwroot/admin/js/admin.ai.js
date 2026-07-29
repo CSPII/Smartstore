@@ -1,10 +1,10 @@
 (function ($, window, document, undefined) {
     $(function () {
         // Images
-        $(document).on('click', '.ai-provider-tool .ai-image-composer', function (e) {
+        $(document).on('click', '.ai-image-composer', (e) => {
             e.preventDefault();
 
-            let el = $(this);
+            const el = $(e.target);
             let tool = el.closest(".ai-provider-tool");
             if (tool.length === 0) {
                 return;
@@ -12,15 +12,15 @@
 
             // Set the title used for the modal dialog title. 
             // For direct openers the title is set else we take the text of the dropdown item.
-            let title = this.getAttribute("title") || el.html();
+            let title = e.target.getAttribute("title") || el.html();
             
             let params = {
-                targetProperty: tool.data('target-property'),
-                entityName: tool.data('entity-name'),
-                type: tool.data('entity-type'),
+                targetProperty: tool.data('target-property') || '',
+                entityName: tool.data('entity-name') || '',
+                type: tool.data('entity-type') || '',
                 modalTitle: title,
-                orientation: tool.data('orientation'),
-                mediaFolder: tool.data('media-folder')
+                orientation: tool.data('orientation') || '',
+                mediaFolder: tool.data('media-folder') || ''
             };
 
             openDialog(tool, params, true);
@@ -56,17 +56,18 @@
             }
 
             const cmd = el.data('command');
-            const isSummernoteInlineEditing = el.closest(".html-editor-root").length !== 0;
-            
-            let isRichText = tool.data('is-rich-text') || (cmd === "create-new" && isSummernoteInlineEditing);
+            const location = el.closest('.ai-dropdown-menu').data("location");
+            const isHtmlInlineEditing = location == "HtmlEditor";
+            const isRichText = toBool(tool.data('is-richtext')) && cmd === "generate";
 
             let params = {
+                commandLocation: location,
                 entityName: tool.data('entity-name'),
                 Type: tool.data('entity-type'),
                 targetProperty: tool.data('target-property'),
                 charLimit: tool.data('char-limit'),
                 // INFO: This is the optimization command of the clicked item.
-                optimizationCommand: el.data('command'),
+                command: el.data('command'),
                 // INFO: This is important for change style and tone items. We must know how to change the present text. 
                 // For command "change-style" e.g.professional, casual, friendly, etc.
                 changeParameter: cmd === 'change-style' || cmd === 'change-tone' ? el.text() : '',
@@ -76,7 +77,7 @@
                 selectedElementType: tool.data('range-is-on')
             };
 
-            if (tool.closest(".note-dropdown-menu").length) {
+            if (isHtmlInlineEditing) {
                 params.origin = "summernote";
             }
 
@@ -95,14 +96,13 @@
                     displayImageOptions: tool.data('display-image-options'),
                     displayLayoutOptions: tool.data('display-layout-options')
                 });
-
-                var richTextUrl = tool.data("rich-text-modal-url");
-                if (richTextUrl) {
-                    tool.data('modal-url', richTextUrl);
-                }
             }
 
-            openDialog(tool, params, isRichText);
+            if (!el.data('modal-url')) {
+                el.data('modal-url', tool.data('modal-url'));
+            }
+
+            openDialog(el, params, isRichText);
         });
 
         // Translation

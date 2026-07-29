@@ -8,14 +8,14 @@
     var paymentButtons = hasItems
         ? (await Model.ButtonPaymentMethods.Items
             .SelectAwait(x => x.InvokeAsync(ViewContext))
-            .AsyncToList())
+            .ToListAsync())
             .Where(x => x.HasContent())
         : Enumerable.Empty<IHtmlContent>();
 }
 
 <div class="order-summary-content cart-content"
      data-empty-text="@T("ShoppingCart.CartIsEmpty")"
-     data-update-item-url="@Url.Action("UpdateCartItem", "ShoppingCart")">
+     data-update-item-url="@Url.Action("UpdateCartItem", "ShoppingCart", new { origin = (int)UpdateCartItemOrigin.Cart })">
     <zone name="order_summary_content_before" />
 
     @if (Model.DisplayCommentBox && !Model.IsEditable)

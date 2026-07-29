@@ -1,258 +1,332 @@
 ﻿using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Newtonsoft.Json;
 using Smartstore.Core.Localization;
+using Smartstore.Core.Web;
 using Smartstore.Core.Widgets;
 using Smartstore.Engine.Modularity;
 using Smartstore.Http;
 using Smartstore.Utilities;
 
-namespace Smartstore.Core.Security
+namespace Smartstore.Core.Security;
+
+[SystemName(SystemName)]
+[FriendlyName("Google reCAPTCHA")]
+[Order(0)]
+internal class GoogleRecaptchaProvider : ICaptchaProvider, IConfigurable
 {
-    [SystemName(SystemName)]
-    [FriendlyName("Google reCAPTCHA")]
-    [Order(0)]
-    internal class GoogleRecaptchaProvider : ICaptchaProvider, IConfigurable
+    internal const string SystemName = "Captcha.GoogleRecaptcha";
+
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly GoogleRecaptchaSettings _settings;
+
+    public GoogleRecaptchaProvider(IHttpClientFactory httpClientFactory, GoogleRecaptchaSettings settings)
     {
-        internal const string SystemName = "Captcha.GoogleRecaptcha";
+        _httpClientFactory = httpClientFactory;
+        _settings = settings;
+    }
 
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly GoogleRecaptchaSettings _settings;
+    public Localizer T { get; set; } = NullLocalizer.Instance;
+    public ILogger Logger { get; set; } = NullLogger.Instance;
 
-        public GoogleRecaptchaProvider(IHttpClientFactory httpClientFactory, GoogleRecaptchaSettings settings)
+    public bool IsConfigured
+        => _settings.SiteKey.HasValue() && _settings.SecretKey.HasValue();
+
+    public bool IsInvisible
+        => IsV2 && _settings.Size.EqualsNoCase("invisible");
+
+    public bool IsNonInteractive =>
+        IsV3 || IsInvisible;
+
+    public RouteInfo GetConfigurationRoute()
+        => new("GoogleRecaptcha", "Security", new { area = "Admin" });
+
+    public Task<Widget> CreateWidgetAsync(CaptchaContext context)
+    {
+        Guard.NotNull(context);
+
+        if (!IsConfigured)
         {
-            _httpClientFactory = httpClientFactory;
-            _settings = settings;
+            return Task.FromResult<Widget>(null);
         }
 
-        public Localizer T { get; set; } = NullLocalizer.Instance;
+        var isV3 = IsV3;
+        var theme = _settings.UseDarkTheme ? "dark" : "light";
+        var lang = context.Language?.UniqueSeoCode.EmptyNull().ToLowerInvariant();
+        var baseUrl = _settings.WidgetUrl.NullEmpty() ?? GoogleRecaptchaSettings.DefaultWidgetUrl;
 
-        public bool IsConfigured 
-            => _settings.SiteKey.HasValue() && _settings.SecretKey.HasValue();
+        // 2. STRICT URL GENERATION:
+        // - v3 MUST use: render=SITE_KEY
+        // - v2 MUST use: render=explicit
+        // - If you mix this up, you get "Invalid Key Type" error.
+        var renderParam = IsV3 ? _settings.SiteKey : "explicit";
+        var langParam = lang.HasValue() ? $"&hl={lang}" : string.Empty;
 
-        public bool IsInvisible 
-            => IsV2 && _settings.Size.EqualsNoCase("invisible");
+        var apiSrc = $"{baseUrl}?render={renderParam}{langParam}";
 
-        public bool IsNonInteractive => 
-            IsV3 || IsInvisible;
+        var assetBuilder = context.AssetBuilder;
 
-        public RouteInfo GetConfigurationRoute()
-            => new("GoogleRecaptcha", "Security", new { area = "Admin" });
+        // Register reCAPTCHA external API script
+        var script = $"<script src='{apiSrc}' async defer></script>";
+        assetBuilder.AddHtmlContent("scripts", new HtmlString(script), apiSrc);
 
-        public Task<Widget> CreateWidgetAsync(CaptchaContext context)
+        // Register required reCAPTCHA bootstrapper
+        var scriptUrl = "/js/smartstore.captcha.grecaptcha.js";
+        script = $"<script src='{context.Url.Content(scriptUrl)}' async defer></script>";
+        assetBuilder.AddHtmlContent("scripts", new HtmlString(script), scriptUrl);
+
+        // Determine if badge should be hidden
+        // Note: Hiding the badge is only legally allowed if you show the disclaimer manually.
+        var isHiddenBadge = (!isV3 && _settings.Size.EqualsNoCase("invisible") && _settings.BadgePosition.EqualsNoCase("hide"))
+            || (isV3 && _settings.HideBadgeV3);
+
+        var content = new HtmlContentBuilder();
+
+        if (!isV3)
         {
-            Guard.NotNull(context);
+            // v2: render explicit widget placeholder
+            var elementId = "recaptcha" + CommonHelper.GenerateRandomDigitCode(5);
 
-            if (!IsConfigured)
+            var element = new TagBuilder("div");
+            element.Attributes["id"] = elementId;
+            element.Attributes["data-sitekey"] = _settings.SiteKey;
+            element.Attributes["data-theme"] = theme;
+            element.Attributes["data-size"] = _settings.Size;
+            element.Attributes["class"] = "g-recaptcha";
+
+            content.AppendLine(element);
+
+            // Provide minimal JSON config for the adapter
+            var config = new
             {
-                return Task.FromResult<Widget>(null);
-            }
-
-            var isV3 = IsV3;
-            var theme = _settings.UseDarkTheme ? "dark" : "light";
-            var lang = context.Language?.UniqueSeoCode.EmptyNull().ToLowerInvariant();
-            var baseUrl = _settings.WidgetUrl.NullEmpty() ?? GoogleRecaptchaSettings.DefaultWidgetUrl;
-            var apiSrc = isV3 ? $"{baseUrl}?render={_settings.SiteKey}{(lang.HasValue() ? "&hl=" + lang : string.Empty)}"
-                              : $"{baseUrl}?render=explicit{(lang.HasValue() ? "&hl=" + lang : string.Empty)}";
-
-            var assetBuilder = context.AssetBuilder;
-
-            // Register reCAPTCHA external API script
-            var script = $"<script src='{apiSrc}' async defer></script>";
-            assetBuilder.AddHtmlContent("scripts", new HtmlString(script), apiSrc);
-
-            // Register required reCAPTCHA bootstrapper
-            var scriptUrl = "/js/smartstore.captcha.grecaptcha.js";
-            script = $"<script src='{context.Url.Content(scriptUrl)}' async defer></script>";
-            assetBuilder.AddHtmlContent("scripts", new HtmlString(script), scriptUrl);
-
-            var isHiddenBadge = (!isV3 && _settings.Size.EqualsNoCase("invisible") && _settings.BadgePosition.EqualsNoCase("hide"))
-                || (isV3 && _settings.HideBadgeV3);
-
-            var content = new HtmlContentBuilder();
-
-            if (!isV3)
-            {
-                // v2: render explicit widget placeholder
-                var elementId = "recaptcha" + CommonHelper.GenerateRandomDigitCode(5);
-                
-                var element = new TagBuilder("div");
-                element.Attributes["id"] = elementId;
-                element.Attributes["data-sitekey"] = _settings.SiteKey;
-                element.Attributes["data-theme"] = theme;
-                element.Attributes["data-size"] = _settings.Size;
-                element.Attributes["class"] = "g-recaptcha";
-
-                if (isHiddenBadge)
-                {
-                    // Invisible badge: we need to render the legally required notice here.
-                    element.InnerHtml.AppendHtml(T("Admin.Configuration.Settings.GeneralCommon.GoogleRecaptcha.HiddenBadgeLegalNotice").Value);
-                }
-
-                content.AppendLine(element);
-
-                // Provide minimal JSON config for the adapter
-                var config = new
-                {
-                    siteKey = _settings.SiteKey,
-                    size = _settings.Size,
-                    badge = _settings.BadgePosition.EqualsNoCase("hide") ? "inline" : _settings.BadgePosition,
-                    theme,
-                    elementId
-                };
-                content.AppendHtmlLine($"<script type='application/json' class='captcha-config'>{JsonConvert.SerializeObject(config)}</script>");
-            }
-            else
-            {
-                // v3: no visible widget; ensure hidden response field exists and expose config
-                content.AppendHtmlLine("<input type='hidden' id='g-recaptcha-response' name='g-recaptcha-response' value='' />");
-
-                if (isHiddenBadge)
-                {
-                    // Invisible badge: we need to render the legally required notice here.
-                    content.AppendHtmlLine(T("Admin.Configuration.Settings.GeneralCommon.GoogleRecaptcha.HiddenBadgeLegalNotice").Value);
-                }
-
-                // Provide minimal JSON config for the adapter
-                var cfg = new
-                {
-                    siteKey = _settings.SiteKey,
-                    defaultAction = _settings.DefaultAction,
-                    scoreThreshold = _settings.ScoreThreshold,
-                    hideBadge = _settings.HideBadgeV3,
-                };
-                content.AppendHtmlLine($"<script type='application/json' class='captcha-config'>{JsonConvert.SerializeObject(cfg)}</script>");
-            }
+                siteKey = _settings.SiteKey,
+                size = _settings.Size,
+                badge = _settings.BadgePosition.EqualsNoCase("hide") ? "inline" : _settings.BadgePosition,
+                theme,
+                elementId
+            };
+            content.AppendHtmlLine($"<script type='application/json' class='captcha-config'>{JsonSerializer.Serialize(config)}</script>");
 
             if (isHiddenBadge)
             {
-                context.AssetBuilder.BodyAttributes.AddInValue("class", ' ', "grecaptcha-badge-hidden", false);
+                // Invisible badge: we need to render the legally required notice here.
+                content.AppendHtmlLine(T("Admin.Configuration.Settings.GeneralCommon.GoogleRecaptcha.HiddenBadgeLegalNotice").Value);
+            }
+        }
+        else
+        {
+            // v3: no visible widget; ensure hidden response field exists and expose config
+            content.AppendHtmlLine("<input type='hidden' id='g-recaptcha-response' name='g-recaptcha-response' value='' />");
+
+            if (isHiddenBadge)
+            {
+                // Invisible badge: we need to render the legally required notice here.
+                content.AppendHtmlLine(T("Admin.Configuration.Settings.GeneralCommon.GoogleRecaptcha.HiddenBadgeLegalNotice").Value);
             }
 
-            return Task.FromResult<Widget>(new HtmlWidget(content));
+            // Provide minimal JSON config for the adapter
+            var cfg = new
+            {
+                siteKey = _settings.SiteKey,
+                defaultAction = _settings.DefaultAction,
+                scoreThreshold = _settings.ScoreThreshold,
+                hideBadge = _settings.HideBadgeV3,
+            };
+            content.AppendHtmlLine($"<script type='application/json' class='captcha-config'>{JsonSerializer.Serialize(cfg)}</script>");
         }
 
-        public async Task<CaptchaValidationResult> ValidateAsync(CaptchaContext context, CancellationToken cancelToken = default)
+        if (isHiddenBadge)
         {
-            Guard.NotNull(context);
+            context.AssetBuilder.BodyAttributes.AddInValue("class", ' ', "grecaptcha-badge-hidden", false);
+        }
 
-            var result = new CaptchaValidationResult();
+        return Task.FromResult<Widget>(new HtmlWidget(content));
+    }
 
-            if (!IsConfigured)
+    public async Task<CaptchaValidationResult> ValidateAsync(CaptchaContext context, CancellationToken cancelToken = default)
+    {
+        Guard.NotNull(context);
+
+        var result = new CaptchaValidationResult();
+        Exception verifyException = null;
+
+        // ════════════════════════════════════════════════════════════════════════
+        // CONFIGURATION CHECK (Fail-Open: Customer might have wrong keys)
+        // ════════════════════════════════════════════════════════════════════════
+        if (!IsConfigured)
+        {
+            return LogFailOpen("configuration-missing", "Not configured");
+        }
+
+        var token = context.HttpContext.Request.Form["g-recaptcha-response"].ToString();
+
+        // ════════════════════════════════════════════════════════════════════════
+        // TOKEN PRESENCE CHECK (Fail-Closed: Bot exploit prevention!)
+        // ════════════════════════════════════════════════════════════════════════
+        if (token.IsEmpty())
+        {
+            Logger.Debug("reCAPTCHA validation failed: Token missing (likely bot or user skipped CAPTCHA). Blocking request.");
+            result.Messages.Add(new CaptchaValidationMessage("missing-input-response", CaptchaValidationMessageLevel.Error));
+            return result; // ← Fail-Closed!
+        }
+
+        var client = _httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(10);
+
+        var verifyUrl = _settings.VerifyUrl.NullEmpty() ?? GoogleRecaptchaSettings.DefaultVerifyUrl;
+
+        var postData = new List<KeyValuePair<string, string>>(
+        [
+            new("secret", _settings.SecretKey),
+            new("response", token)
+        ]);
+
+        var ipAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString();
+        if (ipAddress.HasValue() && !context.HttpContext.Connection.IsLocal())
+        {
+            // CRUCIAL: Add remoteip to the verification request
+            postData.Add(new("remoteip", ipAddress));
+        }
+
+        GoogleRecaptchaApiResponse payload = null;
+
+        try
+        {
+            using var content = new FormUrlEncodedContent(postData);
+            using var response = await client.PostAsync(verifyUrl, content, cancelToken);
+            payload = await response.Content.ReadFromJsonAsync<GoogleRecaptchaApiResponse>(cancelToken);
+        }
+        catch (Exception ex)
+        {
+            verifyException = ex;
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // NETWORK/API FAILURE (Fail-Open: Google API down, not customer's fault)
+        // ════════════════════════════════════════════════════════════════════════
+        if (payload == null)
+        {
+            return LogFailOpen("unable-to-verify", "Google API unreachable or returned empty payload");
+        }
+
+        if (!payload.Success)
+        {
+            var codes = payload.ErrorCodes?.Where(x => x.HasValue()).ToArray() ?? [];
+
+            // Misconfiguration/system errors according to Google error code reference
+            var isMisconfiguration =
+                codes.Contains("missing-input-secret", StringComparer.OrdinalIgnoreCase) ||
+                codes.Contains("invalid-input-secret", StringComparer.OrdinalIgnoreCase) ||
+                codes.Contains("bad-request", StringComparer.OrdinalIgnoreCase);
+
+            if (isMisconfiguration)
             {
-                result.Messages.Add(new CaptchaValidationMessage("configuration-missing", CaptchaValidationMessageLevel.Error));
-                return result;
+                return LogFailOpen("misconfiguration", "Invalid secret key detected (check reCAPTCHA configuration)");
             }
 
-            var token = context.HttpContext.Request.Form["g-recaptcha-response"].ToString();
-            if (token.IsEmpty())
+            // ════════════════════════════════════════════════════════════════════════
+            // INVALID TOKEN (Fail-Closed: Bot sent garbage/expired/stolen token)
+            // ════════════════════════════════════════════════════════════════════════
+            // Bot or malicious user sent an invalid/expired/stolen token. Block!
+            foreach (var code in codes.Where(x => !x.Equals("missing-input-response", StringComparison.OrdinalIgnoreCase)))
             {
-                result.Messages.Add(new CaptchaValidationMessage("missing-input-response", CaptchaValidationMessageLevel.Warning));
-                return result;
+                var level = code.EqualsNoCase("invalid-input-response") || code.EqualsNoCase("timeout-or-duplicate")
+                    ? CaptchaValidationMessageLevel.Warning
+                    : CaptchaValidationMessageLevel.Error;
+
+                result.Messages.Add(new CaptchaValidationMessage(code, level));
             }
 
-            var client = _httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(10);
+            return result; // ← Fail-Closed!
+        }
 
-            var verifyUrl = _settings.VerifyUrl.NullEmpty() ?? GoogleRecaptchaSettings.DefaultVerifyUrl;
-
-            using var content = new FormUrlEncodedContent(
-[
-                new KeyValuePair<string, string>("secret", _settings.SecretKey),
-                new KeyValuePair<string, string>("response", token),
-                new KeyValuePair<string, string>("remoteip", context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty)
-            ]);
-
-
-            GoogleRecaptchaApiResponse payload = null;
-
-            try
+        // ════════════════════════════════════════════════════════════════════════
+        // HOSTNAME VALIDATION (Fail-Closed: Cross-domain token theft prevention)
+        // ════════════════════════════════════════════════════════════════════════
+        if (payload.Hostname.HasValue())
+        {
+            var expectedHost = context.HttpContext.Request.Host.Host;
+            if (!payload.Hostname.EqualsNoCase(expectedHost))
             {
-                using var response = await client.PostAsync(verifyUrl, content, cancelToken);
-                var json = await response.Content.ReadAsStringAsync(cancelToken);
-                payload = JsonConvert.DeserializeObject<GoogleRecaptchaApiResponse>(json);
+                Logger.Debug("reCAPTCHA hostname mismatch: expected '{Expected}', got '{Actual}'. Potential cross-domain attack.",
+                    expectedHost, payload.Hostname);
+                result.Messages.Add(new CaptchaValidationMessage("hostname-mismatch", CaptchaValidationMessageLevel.Error));
+                return result; // ← Fail-Closed!
             }
-            catch
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // TIMESTAMP VALIDATION (Fail-Closed: Token replay attack prevention)
+        // ════════════════════════════════════════════════════════════════════════
+        if (payload.ChallengeTs.HasValue)
+        {
+            var tokenAge = DateTime.UtcNow - payload.ChallengeTs.Value;
+            if (tokenAge > TimeSpan.FromMinutes(5))
             {
+                Logger.Debug("reCAPTCHA token expired: age {Age:0.0} minutes. Potential replay attack.", tokenAge.TotalMinutes);
+                result.Messages.Add(new CaptchaValidationMessage("token-expired", CaptchaValidationMessageLevel.Warning));
+                return result; // ← Fail-Closed!
             }
+        }
 
-            if (payload == null)
+        // v3 extra checks ---
+        if (IsV3)
+        {
+            var score = payload.Score ?? 0f;
+            if (score < _settings.ScoreThreshold)
             {
-                result.Messages.Add(new CaptchaValidationMessage("unable-to-verify", CaptchaValidationMessageLevel.Error));
-                return result;
-            }
-
-            if (!payload.Success)
-            {
-                if (payload.ErrorCodes != null)
-                {
-                    foreach (var code in payload.ErrorCodes.Where(x => x.HasValue() && x != "missing-input-response"))
-                    {
-                        if (code.IsEmpty())
-                        {
-                            continue;
-                        }
-
-                        var level = code == "invalid-input-response" 
-                            ? CaptchaValidationMessageLevel.Warning 
-                            : CaptchaValidationMessageLevel.Error;
-
-                        result.Messages.Add(new CaptchaValidationMessage(code, level));
-                    }
-                }
-
-                return result;
+                result.Messages.Add(new CaptchaValidationMessage($"low-score({score:0.00})", CaptchaValidationMessageLevel.Warning));
+                return result; // ← Fail-Closed!
             }
 
-            // v3 extra checks ---
-            if (IsV3)
+            // 2) Optional action comparison
+            // Provider-agnostic convention: read "captcha-action" from POST. If not present, fall back to DefaultAction.
+            var postedAction = context.HttpContext.Request.Form["captcha-action"].ToString();
+            var expectedAction = postedAction.NullEmpty() ?? _settings.DefaultAction;
+
+            if (!string.IsNullOrEmpty(expectedAction) && !expectedAction.EqualsNoCase(payload.Action))
             {
-                var score = payload.Score ?? 0f;
-                if (score < _settings.ScoreThreshold)
-                {
-                    result.Messages.Add(new CaptchaValidationMessage($"low-score({score:0.00})", CaptchaValidationMessageLevel.Warning));
-                    return result;
-                }
-
-                // 2) Optional action comparison
-                // Provider-agnostic convention: read "captcha-action" from POST. If not present, fall back to DefaultAction.
-                var postedAction = context.HttpContext.Request.Form["captcha-action"].ToString();
-                var expectedAction = postedAction.NullEmpty() ?? _settings.DefaultAction;
-
-                if (!string.IsNullOrEmpty(expectedAction) && !expectedAction.EqualsNoCase(payload.Action))
-                {
-                    result.Messages.Add(new CaptchaValidationMessage("action-mismatch", CaptchaValidationMessageLevel.Warning));
-                    return result;
-                }
+                result.Messages.Add(new CaptchaValidationMessage("action-mismatch", CaptchaValidationMessageLevel.Warning));
+                return result; // ← Fail-Closed!
             }
+        }
 
+        result.Success = true;
+        return result;
+
+        CaptchaValidationResult LogFailOpen(string code, string message)
+        {
+            Logger.Error(verifyException, $"reCAPTCHA verification failed: {message}. Allowing request to pass (fail-open).");
             result.Success = true;
+            result.Messages.Add(new CaptchaValidationMessage(code, CaptchaValidationMessageLevel.Warning));
             return result;
         }
-
-        private bool IsV3 => _settings.Version.Equals("v3", StringComparison.OrdinalIgnoreCase);
-        private bool IsV2 => _settings.Version.Equals("v2", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal sealed class GoogleRecaptchaApiResponse
-    {
-        [JsonProperty("success")] 
-        public bool Success { get; set; }
+    private bool IsV3 => _settings.Version.Equals("v3", StringComparison.OrdinalIgnoreCase);
+    private bool IsV2 => _settings.Version.Equals("v2", StringComparison.OrdinalIgnoreCase);
+}
 
-        [JsonProperty("score")] 
-        public float? Score { get; set; } // v3
+internal sealed class GoogleRecaptchaApiResponse
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
 
-        [JsonProperty("action")] 
-        public string Action { get; set; } // v3
+    [JsonPropertyName("score")]
+    public float? Score { get; set; } // v3
 
-        [JsonProperty("challenge_ts")] 
-        public DateTime? ChallengeTs { get; set; } // v2/v3
+    [JsonPropertyName("action")]
+    public string Action { get; set; } // v3
 
-        [JsonProperty("hostname")] 
-        public string Hostname { get; set; } // v2/v3
+    [JsonPropertyName("challenge_ts")]
+    public DateTime? ChallengeTs { get; set; } // v2/v3
 
-        [JsonProperty("error-codes")] 
-        public List<string> ErrorCodes { get; set; }
-    }
+    [JsonPropertyName("hostname")]
+    public string Hostname { get; set; } // v2/v3
+
+    [JsonPropertyName("error-codes")]
+    public List<string> ErrorCodes { get; set; }
 }

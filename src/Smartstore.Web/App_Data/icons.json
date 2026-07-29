@@ -6175,7 +6175,7 @@
     "search": {
       "terms": [
         "bahai",
-        "bahá'í",
+        "bahÃ¡'Ã­",
         "star"
       ]
     },
@@ -12129,7 +12129,7 @@
       "brands"
     ],
     "unicode": "f37f",
-    "label": "Büromöbel-Experte GmbH & Co. KG.",
+    "label": "BÃ¼romÃ¶bel-Experte GmbH & Co. KG.",
     "voted": false,
     "svg": {
       "brands": {
@@ -15976,7 +15976,7 @@
         "tick",
         "todo",
         "yes",
-        "✓"
+        "âœ“"
       ]
     },
     "styles": [
@@ -19612,12 +19612,12 @@
         "clock",
         "date",
         "four",
-        "four o’clock",
+        "four oâ€™clock",
         "hour",
         "late",
         "minute",
         "o'clock",
-        "o’clock",
+        "oâ€™clock",
         "schedule",
         "ticking",
         "time",
@@ -25742,7 +25742,7 @@
         "division",
         "math",
         "sign",
-        "÷"
+        "Ã·"
       ]
     },
     "styles": [
@@ -54629,7 +54629,7 @@
         "remove",
         "sign",
         "trash",
-        "−"
+        "âˆ’"
       ]
     },
     "styles": [
@@ -74217,7 +74217,7 @@
         "tick",
         "todo",
         "yes",
-        "✓"
+        "âœ“"
       ]
     },
     "styles": [
@@ -76370,7 +76370,7 @@
         "window",
         "wrong",
         "x",
-        "×"
+        "Ã—"
       ]
     },
     "styles": [
@@ -91528,7 +91528,7 @@
         "sign",
         "wrong",
         "x",
-        "×"
+        "Ã—"
       ]
     },
     "styles": [

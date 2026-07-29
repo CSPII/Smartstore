@@ -1,5 +1,6 @@
 ﻿@using Smartstore.Web.Models.Catalog
 @using Smartstore.Core.Catalog.Products
+@using Microsoft.AspNetCore.Http.Extensions
 
 @model ProductDetailsModel
 
@@ -7,11 +8,28 @@
     Assets.AppendTitleParts(Model.MetaTitle.HasValue() ? Model.MetaTitle : Model.Name);
     Assets.AppendMetaDescriptionParts(Model.MetaDescription);
     Assets.AppendMetaKeywordsParts(Model.MetaKeywords);
-    
+
     if (Model.CanonicalUrl.HasValue())
     {
         Assets.AppendCanonicalUrlParts(Model.CanonicalUrl);
     }
+
+    var url = Model.CanonicalUrl ?? Request.GetDisplayUrl();
+    // INFO: Not "showing" this data in the UI does not mean it's not useful for bots. We can add it to the JSON-LD anyway.
+    Assets.JsonLd.Product.Merge(new
+    {
+        name = Model.Name.Value,
+        sku = Model.Sku,
+        gtin = Model.Gtin,
+        mpn = Model.ManufacturerPartNumber,
+        url = url
+    });
+
+    Assets.JsonLd.Product.Quantity("weight", Model.Weight);
+    Assets.JsonLd.Product.Quantity("width", Model.Width);
+    Assets.JsonLd.Product.Quantity("depth", Model.Length);
+    Assets.JsonLd.Product.Quantity("height", Model.Height);
+
     bool hasYoutube = !Model.MediaGalleryModel.ProductVideoUrl.IsNullOrEmpty();
 }
 
@@ -41,9 +59,15 @@
 
                         </h1>
                     </div>
+                    <!-- Mobile info above gallery -->
+                    <div class="col-12 d-block d-md-none">
+                        <zone name="productdetails_info_mobile_top" />
+                        <partial name="Product.Info.Mobile" model="Model" />
+                        <zone name="productdetails_info_mobile_bottom" />
+                    </div>
 
                     <!-- Picture -->
-                    <div class="col-12 col-md-6 col-lg-7 pd-data-col @(hasYoutube ? "w-100" : "" )">
+                    <div class="col-12 col-md-6 col-lg-7 pd-data-col">
                         <div class="pd-data-col-inner">
                             <zone name="productdetails_pictures_top" />
 
@@ -62,7 +86,9 @@
 
                         <zone name="productdetails_info_top" />
 
-                        <partial name="Product.Info" model="Model" />
+                        <div class="pd-info-container d-none d-md-block">
+                            <partial name="Product.Info" model="Model" />
+                        </div>
 
                         <div sm-if="Model.ProductType == ProductType.BundledProduct" class="pd-bundle-container pd-group card shadow-sm">
                             <partial name="Product.Bundle" model="Model" />

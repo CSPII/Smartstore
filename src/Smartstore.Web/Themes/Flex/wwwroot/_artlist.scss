@@ -23,6 +23,7 @@
     --art-box-shadow: var(--box-shadow-sm);
     --art-active-bg-color: #{$art-active-bg-color};
     --art-active-border-color: #{$art-active-border-color};
+    --art-color-opt-size: 1rem;
 
     &.artlist-lines {
         --art-font-size: #{$font-size-base};
@@ -38,22 +39,22 @@
 // --------------------------------------------------
 
 @mixin make-art-row() {
-  --gutter-x: 0;
-  --gutter-y: 0;
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: calc(-1 * var(--gutter-y));
-  margin-right: calc(-.5 * var(--gutter-x));
-  margin-left: calc(-.5 * var(--gutter-x));
+    --gutter-x: 0;
+    --gutter-y: 0;
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: calc(-1 * var(--gutter-y));
+    margin-right: calc(-.5 * var(--gutter-x));
+    margin-left: calc(-.5 * var(--gutter-x));
 }
 
 @mixin make-art-col-ready() {
-  box-sizing: border-box;
-  flex-shrink: 0;
-  width: 100%;
-  max-width: 100%; // Prevent `.col-auto`, `.col` (& responsive variants) from breaking out the grid
-  margin-inline: calc(var(--gutter-x) * .5);
-  margin-top: var(--gutter-y);
+    box-sizing: border-box;
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 100%; // Prevent `.col-auto`, `.col` (& responsive variants) from breaking out the grid
+    margin-inline: calc(var(--gutter-x) * .5);
+    margin-top: var(--gutter-y);
 }
 
 @mixin make-art-col($cols) {
@@ -389,13 +390,17 @@
 
 .art-color-opt {
     display: block;
-    width: 1rem;
-    height: 1rem;
+    width: var(--art-color-opt-size);
+    height: var(--art-color-opt-size);
     text-decoration: none;
 
     &:hover {
-        outline: 1px solid rgba(#000, 0.3);
+        outline: 1px solid rgba($black, 0.3);
     }
+}
+
+.art-opt-plus {
+    height: var(--art-color-opt-size);
 }
 
 .art-more-opts {
@@ -796,6 +801,7 @@
         justify-content: center;
         flex-grow: 1;
         text-align: center;
+        align-items: center;
         padding: 1rem;
         text-decoration: none !important;
         font-size: 1.25rem;

@@ -331,6 +331,9 @@
                         if (copyFrom.is('input, select, textarea')) {
                             text = copyFrom.val();
                         }
+                        else if (copyFrom.is('pre')) {
+                            text = copyFrom.text();
+                        }
                         else {
                             text = copyFrom.html();
                         }
@@ -446,6 +449,18 @@
     window.getAntiforgeryToken = function () {
         return $('meta[name="__rvt"]').attr("content") || $('input[name="__RequestVerificationToken"]').val();
     };
+
+    window.disableSubmitTemporarily = function (form, duration = 4000) {
+        if (!form) return;
+
+        const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitButtons.forEach(btn => {
+            btn.disabled = true;
+            setTimeout(() => {
+                try { btn.disabled = false; } catch { }
+            }, duration);
+        });
+    }
 
     /**
      * Render a JSON object as an HTML tree using <div> rows.
