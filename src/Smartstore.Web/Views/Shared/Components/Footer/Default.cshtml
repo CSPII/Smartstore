@@ -1,17 +1,23 @@
-﻿@using Smartstore.Core.Content.Menus;
-@using Smartstore.Web.Models.Common;
+﻿@model FooterModel
 
-@model FooterModel
+@using Smartstore.Web.Models.Common;
+@using Smartstore.Core.Security;
 
 @{
-    var invserseFooter = Display.GetThemeVariable<bool>("inverse-footer");
+    var inverseFooter = Display.GetThemeVariable<bool>("inverse-footer");
+    var showLinks = Model.ShowSocialLinks && Model.SocialLinks.Count > 0;
+    
+    if (showLinks && Assets.JsonLd.TryGetFragment("Organization", out var org))
+    {
+        org.Arr("sameAs", Model.SocialLinks.Select(x => x.Href).Where(x => x != "#"));
+    }
 }
 
-<footer id="footer" class="@(invserseFooter ? "footer-inverse" : "footer-light")">
+<footer id="footer" class="@(inverseFooter ? "footer-inverse" : "footer-light")">
 
     <zone name="footer_top"></zone>
 
-    <nav sm-if="Model.ShowSocialLinks && Model.SocialLinks.Any()" class="footer-social-wrapper" aria-label="@T("Aria.Label.SocialMediaLinks")">
+    <nav sm-if="showLinks" class="footer-social-wrapper" aria-label="@T("Aria.Label.SocialMediaLinks")">
         <div class="container footer-social">
             <div class="row">
                 <div class="col text-center">
@@ -105,7 +111,9 @@
                         <div sm-if="!Model.HideNewsletterBlock" class="col-12 col-md col-lg-12">
                             <form id="newsletter-form" sm-ajax method="post" asp-action="Subscribe" asp-controller="Newsletter"
                                   data-subscription-failure="@T("Newsletter.SubscriptionFailed")"
-                                  aria-labelledby="newsletter-subscribe-heading">
+                                  aria-labelledby="newsletter-subscribe-heading"
+                                  data-token-fieldname="@HoneypotProtector.TokenFieldName">
+                                <honeypot />
                                 <div class="footer-newsletter nav-collapsible">
                                     <h3 id="newsletter-subscribe-heading" 
                                         class="footer-title nav-toggler collapsed h4"
@@ -115,9 +123,9 @@
                                         aria-expanded="false">
                                         @Html.Raw(T("Newsletter.Title"))
                                     </h3>
-                                    <div id="newsletter-body" class="collapse nav-collapse" role="region" aria-labelledby="newsletter-subscribe-heading">
-                                        <div id="newsletter-subscribe-block" class="mt-2">
-                                            <div class="input-group has-icon shadow-xs rounded-pill mb-2">
+                                    <div id="newsletter-body" class="collapse nav-collapse pb-2" role="region" aria-labelledby="newsletter-subscribe-heading">
+                                        <div id="newsletter-subscribe-block" class="vstack gap-2">
+                                            <div class="input-group has-icon shadow-xs rounded-pill">
                                                 <input asp-for="NewsletterEmail" 
                                                        id="newsletter-email" 
                                                        type="email"
@@ -130,14 +138,14 @@
                                                 </span>
                                                 <span class="input-group-append">
                                                     <span class="input-group-inline-addon rounded-end-pill">
-                                                        <button id="newsletter-subscribe-button" type="submit" class="btn btn-primary">
+                                                        <button id="newsletter-subscribe-button" type="submit" class="btn btn-primary btn-prevent-multiclick">
                                                             <span>@T("Newsletter.Button")</span>
                                                         </button>
                                                     </span>
                                                 </span>
                                             </div>
 
-                                            <fieldset class="mb-2">
+                                            <fieldset>
                                                 <legend class="sr-only">@T("Common.SelectAction")</legend>
                                                 <div class="hstack">
                                                     <div class="form-check form-check-inline">

@@ -1,83 +1,103 @@
 ﻿#nullable enable
 
+using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Primitives;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using Smartstore.ComponentModel;
+using Smartstore.Caching;
+using Smartstore.IO;
+using Smartstore.Json;
 
-namespace Smartstore.Core.AI.Metadata
+namespace Smartstore.Core.AI.Metadata;
+
+public class JsonAIMetadataLoader : IAIMetadataLoader
 {
-    public class JsonAIMetadataLoader : IAIMetadataLoader
+    private readonly IMemoryCache _cache;
+    private readonly IApplicationContext _appContext;
+    private readonly JsonSerializerOptions _jsonOptions;
+
+    public JsonAIMetadataLoader(IMemoryCache cache, IApplicationContext appContext)
     {
-        private readonly IMemoryCache _cache;
-        private readonly IApplicationContext _appContext;
-        private readonly JsonSerializerSettings _serializerSettings;
+        _cache = cache;
+        _appContext = appContext;
 
-        public JsonAIMetadataLoader(IMemoryCache cache, IApplicationContext appContext)
+        _jsonOptions = SmartJsonOptions.CamelCased;
+    }
+
+    protected static string BuildCacheKey(string moduleSystemName)
+        => "aimetadata:" + moduleSystemName;
+
+    protected IMemoryCache Cache
+    {
+        get => _cache;
+    }
+
+    public AIMetadata LoadMetadata(string moduleSystemName)
+    {
+        Guard.NotEmpty(moduleSystemName);
+
+        var cacheKey = BuildCacheKey(moduleSystemName);
+
+        var result = _cache.GetOrCreate(cacheKey, entry =>
         {
-            _cache = cache;
-            _appContext = appContext;
-
-            _serializerSettings = JsonConvert.DefaultSettings!();
-            _serializerSettings.DefaultValueHandling = DefaultValueHandling.Ignore;
-            _serializerSettings.ContractResolver = new SmartContractResolver
+            var (metadata, changeToken) = LoadMetadataCore(moduleSystemName);
+            if (changeToken != null)
             {
-                NamingStrategy = new CamelCaseNamingStrategy()
-            };
-        }
-
-        public AIMetadata LoadMetadata(string moduleSystemName)
-        {
-            Guard.NotEmpty(moduleSystemName);
-
-            var cacheKey = "aimetadata:" + moduleSystemName;
-
-            var result = _cache.GetOrCreate(cacheKey, entry =>
-            {
-                var (metadata, changeToken) = LoadMetadataCore(moduleSystemName);
-                if (changeToken != null)
-                {
-                    // Register the change token to invalidate the cache entry when the file changes.
-                    entry.AddExpirationToken(changeToken);
-                }
-
-                return metadata;
-            });
-
-            return result!;
-        }
-
-        protected virtual (AIMetadata, IChangeToken?) LoadMetadataCore(string moduleSystemName)
-        {
-            var module = _appContext.ModuleCatalog.GetModuleByName(moduleSystemName) ?? throw new InvalidOperationException($"Module {moduleSystemName} does not exist.");
-            var file = module.ContentRoot.GetFile("metadata.json");
-            if (!file.Exists)
-            {
-                throw new InvalidOperationException($"Metadata file for {moduleSystemName} not found.");
+                // Register the change token to invalidate the cache entry when the file changes.
+                entry.AddExpirationToken(changeToken);
             }
 
-            var json = file.ReadAllText();
-            if (Deserialize(json) is not AIMetadata metadata)
-            {
-                throw new InvalidOperationException("Failed to deserialize AIMetadata.");
-            }
+            return new CacheEntry { Key = cacheKey, Value = metadata, ValueType = typeof(AIMetadata) };
+        });
 
-            // Obtain a change token from the file provider whose
-            // callback is triggered when the file is modified.
-            var changeToken = file.FileSystem.Watch(file.SubPath);
+        return (AIMetadata)result!.Value;
+    }
 
-            return (metadata, changeToken);
-        }
+    public virtual Task<AIMetadata?> PostProcessAsync(AIMetadata localMetadata)
+    {
+        localMetadata.PostProcessed = true;
+        return Task.FromResult<AIMetadata?>(null);
+    }
 
-        protected virtual AIMetadata? Deserialize(string json)
+    public void ReplaceMetadata(string moduleSystemName, AIMetadata metadata)
+    {
+        Guard.NotEmpty(moduleSystemName);
+        Guard.NotNull(metadata);
+
+        if (_cache.TryGetValue(BuildCacheKey(moduleSystemName), out CacheEntry? entry))
         {
-            return JsonConvert.DeserializeObject<AIMetadata>(json, _serializerSettings);
+            entry!.Value = metadata;
+        }
+    }
+
+    protected virtual (AIMetadata, IChangeToken?) LoadMetadataCore(string moduleSystemName)
+    {
+        var module = _appContext.ModuleCatalog.GetModuleByName(moduleSystemName) ?? throw new InvalidOperationException($"Module {moduleSystemName} does not exist.");
+        var file = module.ContentRoot.GetFile("metadata.json");
+        if (!file.Exists)
+        {
+            throw new InvalidOperationException($"Metadata file for {moduleSystemName} not found.");
         }
 
-        public void Invalidate(string moduleSystemName)
+        if (Deserialize(file) is not AIMetadata metadata)
         {
-            _cache.Remove("aimetadata:" + moduleSystemName);
+            throw new InvalidOperationException("Failed to deserialize AIMetadata.");
         }
+
+        // Obtain a change token from the file provider whose
+        // callback is triggered when the file is modified.
+        var changeToken = file.FileSystem.Watch(file.SubPath);
+
+        return (metadata, changeToken);
+    }
+
+    protected virtual AIMetadata? Deserialize(IFile file)
+    {
+        using var stream = file.OpenRead();
+        return JsonSerializer.Deserialize<AIMetadata>(stream, _jsonOptions);
+    }
+
+    public void Invalidate(string moduleSystemName)
+    {
+        _cache.Remove(BuildCacheKey(moduleSystemName));
     }
 }

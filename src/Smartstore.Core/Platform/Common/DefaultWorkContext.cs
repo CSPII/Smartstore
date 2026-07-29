@@ -6,18 +6,18 @@ using Smartstore.Core.Identity;
 using Smartstore.Core.Localization;
 using Smartstore.Core.Stores;
 
-namespace Smartstore.Core
-{
-    public partial class DefaultWorkContext : IWorkContext
-    {
-        private readonly SmartDbContext _db;
-        private readonly IWorkContextSource _source;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IStoreContext _storeContext;
-        private readonly TaxSettings _taxSettings;
+namespace Smartstore.Core;
 
-        // KeyItem1 = CustomerId, KeyItem2 = StoreId
-        private readonly Dictionary<(int, int), TaxDisplayType> _taxDisplayTypes = new();
+public partial class DefaultWorkContext : IWorkContext
+{
+    private readonly SmartDbContext _db;
+    private readonly IWorkContextSource _source;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IStoreContext _storeContext;
+    private readonly TaxSettings _taxSettings;
+
+    // KeyItem1 = CustomerId, KeyItem2 = StoreId
+    private readonly Dictionary<(int, int), TaxDisplayType> _taxDisplayTypes = new();
 
         private Customer _customer;
         private Language _language;
@@ -27,36 +27,36 @@ namespace Smartstore.Core
         private TaxDisplayType? _taxDisplayType;
         private bool? _isAdminArea;
 
-        public DefaultWorkContext(
-            SmartDbContext db,
-            IWorkContextSource source,
-            IHttpContextAccessor httpContextAccessor,
-            IStoreContext storeContext,
-            TaxSettings taxSettings)
+    public DefaultWorkContext(
+        SmartDbContext db,
+        IWorkContextSource source,
+        IHttpContextAccessor httpContextAccessor,
+        IStoreContext storeContext,
+        TaxSettings taxSettings)
+    {
+        _db = db;
+        _source = source;
+        _httpContextAccessor = httpContextAccessor;
+        _storeContext = storeContext;
+        _taxSettings = taxSettings;
+    }
+
+    public async Task InitializeAsync()
+    {
+        if (_customer == null)
         {
-            _db = db;
-            _source = source;
-            _httpContextAccessor = httpContextAccessor;
-            _storeContext = storeContext;
-            _taxSettings = taxSettings;
+            (_customer, _impersonator) = await _source.ResolveCurrentCustomerAsync();
         }
 
-        public async Task InitializeAsync()
+        if (_language == null)
         {
-            if (_customer == null)
-            {
-                (_customer, _impersonator) = await _source.ResolveCurrentCustomerAsync();
-            }
+            _language = await _source.ResolveWorkingLanguageAsync(_customer);
+        }
 
-            if (_language == null)
-            {
-                _language = await _source.ResolveWorkingLanguageAsync(_customer);
-            }
-
-            if (_currency == null)
-            {
-                _currency = await _source.ResolveWorkingCurrencyAsync(_customer, IsAdminArea);
-            }
+        if (_currency == null)
+        {
+            _currency = await _source.ResolveWorkingCurrencyAsync(_customer, IsAdminArea);
+        }
 
             if (_store == null)
             {
@@ -74,63 +74,63 @@ namespace Smartstore.Core
             get => _customer != null && _language != null && _currency != null && _taxDisplayType.HasValue && _store != null;
         }
 
-        public Customer CurrentCustomer
+    public Customer CurrentCustomer
+    {
+        get
         {
-            get
+            if (_customer == null)
             {
-                if (_customer == null)
-                {
-                    InitializeAsync().Await();
-                }
-
-                return _customer;
+                InitializeAsync().Await();
             }
-            set => _customer = value;
+
+            return _customer;
         }
+        set => _customer = value;
+    }
 
-        public Customer CurrentImpersonator => _impersonator;
+    public Customer CurrentImpersonator => _impersonator;
 
-        public Language WorkingLanguage
+    public Language WorkingLanguage
+    {
+        get
         {
-            get
+            if (_language == null)
             {
-                if (_language == null)
-                {
-                    InitializeAsync().Await();
-                }
+                InitializeAsync().Await();
+            }
 
-                return _language;
-            }
-            set
-            {
-                if (value?.Id != _language?.Id)
-                {
-                    _source.SaveCustomerAttribute(CurrentCustomer, SystemCustomerAttributeNames.LanguageId, value?.Id, false).Await();
-                    _language = value;
-                }
-            }
+            return _language;
         }
-
-        public Currency WorkingCurrency
+        set
         {
-            get
+            if (value?.Id != _language?.Id)
             {
-                if (_currency == null)
-                {
-                    InitializeAsync().Await();
-                }
-
-                return _currency;
-            }
-            set
-            {
-                if (value?.Id != _currency?.Id)
-                {
-                    _source.SaveCustomerAttribute(CurrentCustomer, SystemCustomerAttributeNames.CurrencyId, value?.Id, false).Await();
-                    _currency = value;
-                }
+                _source.SaveCustomerAttribute(CurrentCustomer, SystemCustomerAttributeNames.LanguageId, value?.Id, false).Await();
+                _language = value;
             }
         }
+    }
+
+    public Currency WorkingCurrency
+    {
+        get
+        {
+            if (_currency == null)
+            {
+                InitializeAsync().Await();
+            }
+
+            return _currency;
+        }
+        set
+        {
+            if (value?.Id != _currency?.Id)
+            {
+                _source.SaveCustomerAttribute(CurrentCustomer, SystemCustomerAttributeNames.CurrencyId, value?.Id, false).Await();
+                _currency = value;
+            }
+        }
+    }
 
         public Store WorkingStore
         {
@@ -162,50 +162,49 @@ namespace Smartstore.Core
                     InitializeAsync().Await();
                 }
 
-                return _taxDisplayType.Value;
-            }
-            set
+            return _taxDisplayType.Value;
+        }
+        set
+        {
+            if (_taxSettings.AllowCustomersToSelectTaxDisplayType && CurrentCustomer.TaxDisplayTypeId != (int)value)
             {
-                if (_taxSettings.AllowCustomersToSelectTaxDisplayType && CurrentCustomer.TaxDisplayTypeId != (int)value)
-                {
-                    CurrentCustomer.TaxDisplayTypeId = (int)value;
-                    _db.SaveChanges();
-                }
-
-                _taxDisplayTypes[(CurrentCustomer.Id, _storeContext.CurrentStore.Id)] = value;
+                CurrentCustomer.TaxDisplayTypeId = (int)value;
+                _db.SaveChanges();
             }
+
+            _taxDisplayTypes[(CurrentCustomer.Id, _storeContext.CurrentStore.Id)] = value;
+        }
+    }
+
+    public async Task<TaxDisplayType> GetTaxDisplayTypeAsync(Customer customer, int storeId)
+    {
+        Guard.NotNull(customer);
+
+        var key = (customer.Id, storeId);
+
+        if (!_taxDisplayTypes.TryGetValue(key, out var result))
+        {
+            result = await _source.ResolveTaxDisplayTypeAsync(customer, storeId);
+            _taxDisplayTypes[key] = result;
         }
 
-        public async Task<TaxDisplayType> GetTaxDisplayTypeAsync(Customer customer, int storeId)
+        return result;
+    }
+
+    public bool IsAdminArea
+    {
+        get
         {
-            Guard.NotNull(customer);
-
-            var key = (customer.Id, storeId);
-
-            if (!_taxDisplayTypes.TryGetValue(key, out var result))
+            if (_isAdminArea.HasValue)
             {
-                result = await _source.ResolveTaxDisplayTypeAsync(customer, storeId);
-                _taxDisplayTypes[key] = result;
-            }
-
-            return result;
-        }
-
-        public bool IsAdminArea
-        {
-            get
-            {
-                if (_isAdminArea.HasValue)
-                {
-                    return _isAdminArea.Value;
-                }
-
-                var httpContext = _httpContextAccessor.HttpContext;
-                _isAdminArea = httpContext?.Request?.IsAdminArea() == true;
-
                 return _isAdminArea.Value;
             }
-            set => _isAdminArea = value;
+
+            var httpContext = _httpContextAccessor.HttpContext;
+            _isAdminArea = httpContext?.Request?.IsAdminArea() == true;
+
+            return _isAdminArea.Value;
         }
+        set => _isAdminArea = value;
     }
 }

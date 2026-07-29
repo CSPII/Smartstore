@@ -4,47 +4,35 @@
 // - Integrates with the generic bootstrap (CaptchaRegistry)
 
 (function () {
-    // Simple readiness helper for grecaptcha
-    function waitForRecaptchaReady(check, onReady, timeoutMs) {
-        const start = Date.now();
-        (function tick() {
-            if (check()) return onReady();
-            if (Date.now() - start > (timeoutMs || 8000)) return; // give up silently
-            setTimeout(tick, 50);
-        })();
-    }
+    'use strict';   
 
-    function ensureResponseInput(form) {
-        var input = form.querySelector('#g-recaptcha-response');
-        if (!input) {
-            input = document.createElement('input');
-            input.type = 'hidden';
-            input.id = 'g-recaptcha-response';
-            input.name = 'g-recaptcha-response';
-            form.appendChild(input);
-        }
+    var H = window.CaptchaHelpers;
+    var PROVIDER = 'Captcha.GoogleRecaptcha';
+    var RESPONSE_FIELD = 'g-recaptcha-response';
+    var ACTION_FIELD = 'captcha-action';
+    var GUARD_NAME = '__captchaResubmit';
 
-        return input;
+    /**
+     * Helper to check if the Google API is actually ready for the specific mode.
+     * v2 needs .render, v3 needs .execute.
+     */
+    function isRecaptchaApiReady() {
+        return window.grecaptcha && (window.grecaptcha.execute || window.grecaptcha.render);
     }
 
     function ensureActionInput(form, action) {
-        var input = form.querySelector('input[name="captcha-action"]');
+        var input = form.querySelector('input[name="' + ACTION_FIELD + '"]');
         if (!input) {
             input = document.createElement('input');
             input.type = 'hidden';
-            input.name = 'captcha-action';
+            input.name = ACTION_FIELD;
             form.appendChild(input);
         }
-
         input.value = action;
         return input;
     }
 
-    function disableSubmitTemporarily(form) {
-        const btn = form.querySelector('[type="submit"]');
-        if (btn) { btn.disabled = true; setTimeout(function () { try { btn.disabled = false; } catch { } }, 4000); }
-    }
-
+    // --- V3 Logic (Score based) ---
     function bindV3(ctx) {
         const container = ctx.container;
         const cfg = ctx.config || {};
@@ -54,56 +42,53 @@
         if (!siteKey) return;
 
         const form = container.closest('form');
-        if (!form || form.__captchaV3Bound) return;
-        form.__captchaV3Bound = true;
+        if (!form) return;
 
-        form.addEventListener('submit', (e) => {
-            // Re-entrancy guard: when set, allow normal pipeline (incl. unobtrusive) to proceed
-            if (form.__captchaResubmit === true) return;
-
-            // Let native validity run first; do nothing if invalid
-            if (typeof form.checkValidity === 'function' && !form.checkValidity()) return;
-
-            e.preventDefault();
-            disableSubmitTemporarily(form);
+        H.bindSubmit(form, GUARD_NAME, function (e, helpers) {
+            // jQuery unobtrusive validation
+            const $form = $(form);
+            const validator = $form.data('validator');
+            if (validator) {
+                $form.validate();
+                if (!$form.valid()) return true; // Allow event to proceed for validation
+            }
 
             const exec = () => {
+                if (!window.grecaptcha || !grecaptcha.execute) {
+                    console.error("reCAPTCHA v3 execute method not found.");
+                    return;
+                }
+
                 grecaptcha.execute(siteKey, { action: action }).then((token) => {
-                    ensureResponseInput(form).value = token;
-                    // Provider-agnostic hint for servers that compare actions
+                    helpers.ensureResponseInput(form, RESPONSE_FIELD).value = token;
                     ensureActionInput(form, action);
 
-                    // If unobtrusive AJAX is enabled, trigger a jQuery submit with a reentrancy guard
-                    const isUnobtrusive = !!(form.getAttribute('data-ajax') || (window.jQuery && jQuery(form).data('ajax')));
-                    if (isUnobtrusive && window.jQuery) {
-                        form.__captchaResubmit = true; // guard ON
-                        try { jQuery(form).trigger('submit'); } finally { form.__captchaResubmit = false; } // guard OFF
-                    } else {
-                        // Fallback: native submit
-                        form.submit();
-                    }
-                }, function () {
-                    // Soft failure: allow form submit without token or show a message depending on policy
+                    // Execute & block reCAPTCHA v3
+                    helpers.resubmitForm(form, GUARD_NAME);
+                    disableSubmitTemporarily(form);
+                }, function (err) {
+                    console.error("reCAPTCHA v3 execution failed", err);
                 });
             };
 
-            // Wait for grecaptcha.execute to be available
-            if (window.grecaptcha && grecaptcha.execute) {
+            if (isRecaptchaApiReady()) {
                 exec();
+            } else {
+                H.waitFor(isRecaptchaApiReady, exec, 8000);
             }
-            else {
-                waitForRecaptchaReady(() => { return window.grecaptcha && grecaptcha.execute; }, exec, 8000);
-            }
-        });
+
+            return false; // Block submit
+        }, '__captchaV3Bound');
     }
 
+    // --- V2 Logic (Checkbox or Invisible) ---
     function bindV2(ctx) {
         const container = ctx.container;
         const cfg = ctx.config || {};
         const siteKey = cfg.siteKey;
         const size = (cfg.size || 'normal');
         const theme = (cfg.theme || 'light');
-        const elementId = ctx.elementId; // expected placeholder id
+        let elementId = ctx.elementId;
 
         if (!elementId) {
             const el = container.querySelector('.g-recaptcha[id]');
@@ -113,65 +98,56 @@
         if (!siteKey || !elementId) return;
 
         const form = container.closest('form');
+        const isInvisible = (size === 'invisible');
 
         function render() {
-            const badge = (size === 'invisible') ? (cfg.badge || 'bottomright') : undefined;
-            const widgetId = grecaptcha.render(elementId, {
-                sitekey: siteKey,
-                size: size === 'invisible' ? 'invisible' : size,
-                theme: theme,
-                badge: badge,
-                callback: (token) => {
-                    if (!form) return;
-                    ensureResponseInput(form).value = token;
+            if (!window.grecaptcha || !window.grecaptcha.render) return;
 
-                    const isInvisible = (size === 'invisible');
-                    if (isInvisible) {
-                        var isUnobtrusive = !!(form.getAttribute('data-ajax') || (window.jQuery && jQuery(form).data('ajax')));
-                        if (isUnobtrusive && window.jQuery) {
-                            // Resubmit through jQuery to keep unobtrusive AJAX pipeline
-                            form.__captchaResubmit = true;
-                            try { jQuery(form).trigger('submit'); } finally { form.__captchaResubmit = false; }
+            try {
+                const badge = isInvisible ? (cfg.badge || 'bottomright') : undefined;
+
+                const widgetId = grecaptcha.render(elementId, {
+                    sitekey: siteKey,
+                    size: isInvisible ? 'invisible' : size,
+                    theme: theme,
+                    badge: badge,
+                    callback: (token) => {
+                        if (!form) return;
+                        H.ensureResponseInput(form, RESPONSE_FIELD).value = token;
+
+                        if (isInvisible) {
+                            H.resubmitForm(form, GUARD_NAME);
+                            disableSubmitTemporarily(form);
                         }
-                        else {
-                            form.submit();
-                        }
+                    },
+                    'expired-callback': () => {
+                        if (form) H.ensureResponseInput(form, RESPONSE_FIELD).value = '';
                     }
-                },
-                'expired-callback': () => {
-                    if (form) ensureResponseInput(form).value = '';
-                }
-            });
-
-            // Invisible v2: intercept submit to trigger execution
-            if (size === 'invisible' && form && !form.__captchaV2InvisibleBound) {
-                form.__captchaV2InvisibleBound = true;
-                form.addEventListener('submit', (e) => {
-                    // Allow pass-through on the guarded resubmit
-                    if (form.__captchaResubmit === true) return;
-
-                    if (typeof form.checkValidity === 'function' && !form.checkValidity()) return;
-                    e.preventDefault();
-                    disableSubmitTemporarily(form);
-                    grecaptcha.execute(widgetId);
                 });
+
+                if (isInvisible && form) {
+                    H.bindSubmit(form, GUARD_NAME, function (e, helpers) {
+                        grecaptcha.execute(widgetId);
+                        return false; // Block submit
+                    }, '__captchaV2InvisibleBound');
+                }
+            } catch (e) {
+                console.error("Failed to render reCAPTCHA v2", e);
             }
         }
 
-        if (window.grecaptcha && grecaptcha.execute) {
+        if (isRecaptchaApiReady()) {
             render();
-        }
-        else {
-            waitForRecaptchaReady(() => { return window.grecaptcha && grecaptcha.execute; }, render, 8000);
+        } else {
+            H.waitFor(isRecaptchaApiReady, render, 8000);
         }
     }
 
     // Register adapter
-    window.CaptchaRegistry.register('Captcha.GoogleRecaptcha', {
-        init: function (ctx) {
-            if (!ctx || !ctx.container) return;
-            if (ctx.mode === 'score') return bindV3(ctx);
-            return bindV2(ctx);
-        }
+    H.register(PROVIDER, function (ctx) {
+        if (!ctx || !ctx.container) return;
+        // Distinguish logic based on mode passed from server
+        if (ctx.mode === 'score') return bindV3(ctx);
+        return bindV2(ctx);
     });
 })();

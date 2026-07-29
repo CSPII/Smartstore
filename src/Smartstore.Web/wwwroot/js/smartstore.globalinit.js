@@ -80,13 +80,23 @@ jQuery(function () {
     });
 
     // Prevent (button) multiclick
-    $(document).on('click', '.btn-prevent-multiclick', function () {
+    $(document).on('click', '.btn-prevent-multiclick', function (e) {
         let el = $(this);
         let containingForm = el.closest("form");
 
         if (containingForm.length) {
             el.prop('disabled', true);
-            containingForm.trigger('submit');
+
+            const submitEvent = new Event('submit', {
+                bubbles: true,
+                cancelable: true
+            });
+            const nativePrevented = !containingForm[0].dispatchEvent(submitEvent);
+
+            // If native handlers (from captcha js) have NOT called preventDefault(), trigger jQuery.
+            if (!nativePrevented) {
+                containingForm.trigger('submit');
+            }
 
             if (!containingForm.valid()) {
                 el.prop('disabled', false);
@@ -475,6 +485,9 @@ jQuery(function () {
             input.type = 'text';
             $btn.aria('pressed', 'true').aria('label', Res["Aria.Label.HidePassword"]);
         }
+
+        // Refocus input
+        input?.focus();
     });
 
     // Swap Popper x placement when RTL

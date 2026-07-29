@@ -1,5 +1,117 @@
 # Release Notes
 
+## Smartstore 6.4.0
+
+### Breaking Changes
+
+- (DEV) Removed `AsyncTo*()` extension methods. Use `To*Async()` instead.
+- (DEV) Removed `IPaymentMethod.PaymentMethodType` property. Use `PaymentMethodTypeAttribute` to SET, and `ProviderMetadata.PaymentMethodType` to GET the type instead.
+- (DEV) Renamed `ReturnRequest` entity and database table to `ReturnCase`.
+
+### New Features
+
+- Updated to **.NET 10**
+  - Increased overall performance.
+- **Withdrawal** plugin (commercial)
+  - Enables customers to submit withdrawals online for eligible orders and items.
+  - Supports compliance with EU rules for digital withdrawal.
+- **AI**
+  - New HTML text optimization command: **Organize**: Improves document structure and cleans up HTML markup.
+  - #1445 Create a new image using the Media Manager.
+  - Generate image: Quality levels (low, medium, or high) can now be specified, but only if the provider supports this feature.
+- **Required products**
+  - Automatically added required products can no longer be removed separately from the cart.
+  - Required products can now keep their quantity in sync with the main product.
+  - Added a setting to show prices of automatically added required products below the main product price.
+- (DEV) Added `JsonLdBuilder` and `JsonLdFragment` to `Smartstore.Json` — a fluent, fragment-based API for contributing schema.org JSON-LD structured data from views, partials and components
+- #1469 Show password policy and live validation on customer registration.
+- #1141 Enable reward points to be awarded for subscribing to the newsletter.
+- Topics: added an option to disable the narrow prose container and render non-widget topic pages in full width (default remains prose/narrow layout).
+- **Wallet**
+  - Wallet credits can be added to the shopping cart anywhere using a PageBuilder block.
+  - An option has been added to display wallet credit amounts as buttons when purchasing credit.
+- **GMC**
+  - Added a setting to export products only for those for which Google data is specified.
+  - When deleting rows in Google grid, delete the Google data assigned to the product.
+  - Consider the permission to update products.
+- **Brevo** Mailing list synchronization (commercial module)
+- **Rate limiter** for queued emails to prevent overload during email bursts.
+- New hidden system setting `CommonSettings.MinLogLevelToRetain` (for scheduled log cleanup operations)
+- #1522 Add a cart rule "All products with delivery time in cart".
+- #1512 Implement new VAT number status `ServiceUnavailable`.
+- #1507 Add shipping details metadata for search engines to the product detail page.
+- #1516 Overwrite `CatalogSettings.DisplayAllImagesNumber` on product level.
+- (DEV) New `Measure` struct that represents a physical measurement.
+
+### Improvements
+
+- (DEV) **Event system**: Consumer methods can now be declared for a **base class or interface** instead of the exact published type.
+- Moved AI command tools from Media Manager toolbar to folder dropwdown menu.
+- Enhanced bot and AI agent detection with heuristic checks further reduces DB junk.
+- **CAPTCHA**
+    - Improved fail-safe behavior to maintain user accessibility while blocking automated abuse
+    - Fixed form submission issue in certain edge cases
+- **Event log**
+    - Log aggregation: Identical logs that occur within a 10-minute window are grouped together.
+    - Stackframe formatter
+    - Stackframe tools: copy to clipboard, wrap text
+- **Theming**
+    - Added `.prose` helpers for readable long-form content: optimized measure (narrow/standard/wide) plus comfortable typography defaults.
+    - On mobile devices (**< md**), key product information such as brand, title, short description, badges, and rating summary is now displayed **above** the image gallery, **not below**.
+    - Product lists now display available **color options** and other variants on **touch devices** by default, ensuring key information is visible without requiring user interaction or hover.
+- #1459 Cart sorting: The selected items must always come before the unselected ones.
+- #1503 Calculate reward points for a purchase based on the net subtotal rather than the gross total.
+- Checkout: After payment confirmation on the third-party site, you will be redirected directly to the completed page if successful. The intermediate step via the confirmation page is omitted.
+- #1465 Display the name of the applied discount on order edit page.
+- #1471 Show the customer's email address next to their name on the order edit page.
+- #1466 UI: Edit discount details page should use text-expander (more-less buttons) for "Assigned to xyz" fields.
+- Improved **guest session isolation** to prevent unrelated visitors from being associated with an existing session under certain network conditions. Also hardened the client identification mechanism against edge cases in IPv6
+    environments.
+- **UserAgent YAML** mappings are now always updated from the embedded resource when a newer app version is deployed. A physical `App_Data/useragent.yml` is only used if it is strictly newer than the assembly. For true customizations, place the file at `App_Data/useragent-custom.yml` instead, which always takes highest priority.
+- **Payever**
+    - Better checkout flow for Zinia lending payment method
+    - Reactivated instant payment by Santander
+- PostFinance/Skrill: Improved the processing of webhook messages.
+- Rebranded payever payment methods. Zinia became Openbank.
+- Grouped products: The GTIN has been added as a header field in the list of associated products.
+- **Downloadable products**
+  - Sort downloadable products by order date in descending order in the my-account section.
+  - Show download button for a downloadable product on order detail page.
+
+### Bugfixes
+
+- Fixed the payment widget not displaying when payment methods are selected via radio buttons in checkout (the behaviour of icons and radio buttons needs to be equal).
+- Fixes the issue of missing text blocks assigned to products via a rule when the "Featured Product" option is enabled in their product category.
+- PostFinance: Fixed issue with TWINT payments regarding environment selection strategy.
+- #1454 After being assigned to an entity, an image below the dropzone is not displayed.
+- #1455 "Duplicate keys detected: `row-undefined`" in currency grid.
+- Adding new addresses wasn't possible because model state was invalid due to missing email fields for registered customers.
+- #1457 UI: "Show All" brand link content (ellipsis) is not centered in manufacturer carousel.
+- Gemini: Fixed `ArgumentNullException` when creating embedded images in rich text.
+- #1452 The off-canvas menu is called infinitely often if the permission for shop access is not granted.
+- A modified, localized name of a payment method was incorrectly overwritten when string resources were updated.
+- Export the entered and not the calculated price in CSV and XML export.
+- OpenTrans: Fixed missing email addresses when exporting addresses.
+- PageBuilder: Issues when previewing selected images while editing a media gallery block.
+- The *Summernote* save button may produce a "languageId must be greater or less than zero" error.
+- Stripe: Fixed bug where the order for which the hook was sent may not have been created yet.
+- Many common CAPTCHA and Google reCAPTCHA fixes.
+- #1472 GMC: Consider `ManageInventoryMethod.ManageStockByAttributes` when exporting availability and attribute combinations are exported as products.
+- An uploaded image must be transient if the associated entity has not yet been saved.
+- Fixed "Failed to add specification attribute" when assigning a specification attribute to a product.
+- Fixed sitemap generator progress bar.
+- Currency assignment by Country/IP lookup has not respected store restrictions.
+- **EasyCredit**
+  - Get cart by using the current store ID explicitly.
+  - The checkboxes for overriding multistore settings were missing.
+- Take the customer's preferred shipping method into account when updating the shopping cart.
+- Fixed "The value '' is invalid" for category export filter.
+- Pricing: Apply a product discount if a tier price equals the regular price.
+- Export: Occasionally, the email created using a publishing profile would be missing the attachment containing the ZIP archive.
+- #1532 Double encoding of Facebook and Twitter metadata.
+- After an order has been placed, the download of an uploaded checkout attribute file must no longer be marked as transient.
+
+
 ## Smartstore 6.3.0
 
 ### Breaking Changes

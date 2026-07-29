@@ -1,19 +1,26 @@
-﻿@using Smartstore.Web.Models.Orders;
-@using Smartstore.Core.Catalog.Products;
+﻿@using Smartstore.Web.Models.Orders
+@using Smartstore.Core.Catalog.Products
+@using Smartstore.Core.Checkout.Orders
 
 @model OrderDetailsModel
 
 @{
     Assets.AppendTitleParts(T("PageTitle.OrderDetails"));
-    Assets.BodyAttributes.AppendCssClass("content-overflow-initial");
 
     var bundleItemThumbSize = Math.Min(Model.BundleThumbSize, 60);
     var hasOrderDetails1 = Model.BillingAddress != null || (Model.IsShippable && Model.ShippingAddress != null);
     var hasOrderDetails2 = Model.PaymentMethod.HasValue() || Model.IsShippable || Model.VatNumber.HasValue();
 
+    var orderWithdrawalReturnCase = Model.IsOrderWithdrawn && Model.Items.Count > 1
+        ? Model.Items.SelectMany(x => x.ReturnCases).Where(x => x.Kind == ReturnCaseKind.Withdrawal).FirstOrDefault() 
+        : null;
+
+    var partialViewData = new ViewDataDictionary(this.ViewData);
+    partialViewData["Parent"] = Model;
+
     async Task RenderAddress(AddressModel address)
     {
-        <address>
+        <address class="mb-0">
             <div class="mb-2">
                 @Html.Raw(address.FormattedAddress)
             </div>
@@ -40,48 +47,55 @@
 
                 @* Data *@
                 <div class="cart-item-data col">
-
-                    @* Title *@
-                    <div class="cart-item-group">
-                        <div class="cart-item-title">
-                            @if (item.ProductUrl.HasValue())
+                    <div class="mb-2">
+                        <div class="cart-item-group">
+                            <div class="cart-item-title">
+                                @if (item.ProductUrl.HasValue())
+                                {
+                                    <a class="cart-item-link" href="@item.ProductUrl" title="@T("Products.Details")" sm-language-attributes-for="item.ProductName">@item.ProductName</a>
+                                }
+                                else
+                                {
+                                    <span sm-language-attributes-for="item.ProductName">@item.ProductName</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="cart-item-attrs cart-item-group fs-sm" sm-suppress-if-empty>
+                            @if (Model.ShowSku && item.Sku.HasValue())
                             {
-                                <a class="cart-item-link" href="@item.ProductUrl" title="@T("Products.Details")" sm-language-attributes-for="item.ProductName">@item.ProductName</a>
+                                <span>@T("Order.Product(s).SKU"):</span>
+                                <span>@item.Sku</span>
                             }
-                            else
+                            @if (item.AttributeInfo.HasValue())
                             {
-                                <span sm-language-attributes-for="item.ProductName">@item.ProductName</span>
+                                @Html.Raw(item.AttributeInfo)
                             }
+                        </div>
+                        <div class="pd-finalprice">
+                            <data asp-for="@item.UnitPrice" class="pd-finalprice-amount"></data>
+                        </div>
+                        <div sm-if="item.Quantity > 0" class="cart-item-qty pd-muted">
+                            <span>@T("Order.Product(s).Quantity"):</span> <span>@item.Quantity @item.QuantityUnit</span>
+                        </div>
+                        <div sm-if="item.UnitPrice != item.SubTotal && item.SubTotal != 0" class="pd-subtotal pd-muted">
+                            <span class="pd-subtotal-label">@T("Order.Product(s).Total"):</span>
+                            <data asp-for="@item.SubTotal" class="pd-subtotal-amount fwm"></data>
                         </div>
                     </div>
 
-                    @* Attributes & Variants *@
-                    <div class="cart-item-attrs cart-item-group fs-sm" sm-suppress-if-empty>
-                        @if (Model.ShowSku && item.Sku.HasValue())
-                        {
-                            <span>@T("Order.Product(s).SKU"):</span>
-                            <span>@item.Sku</span>
-                        }
-                        @if (item.AttributeInfo.HasValue())
-                        {
-                            @Html.Raw(item.AttributeInfo)
-                        }
-                    </div>
+                    <a sm-if="item.IsDownload && item.IsDownloadAllowed"
+                       href="@Url.Action("GetDownload", "Download", new { id = item.OrderItemGuid })"
+                       class="btn btn-secondary btn-sm" 
+                       rel="nofollow">
+                        <i class="fa fa-download" aria-hidden="true"></i>
+                        <span>@T("DownloadableProducts.Fields.Download")</span>
+                        <span class="sr-only"> @item.ProductName</span>
+                    </a>
 
-                    @* Single unit price *@
-                    <div class="pd-finalprice">
-                        <data asp-for="@item.UnitPrice" class="pd-finalprice-amount"></data>
-                    </div>
+                    <zone name="orderdetails_page_after_item_data" model="item.Id" />
 
-                    @* Quantity *@
-                    <div class="cart-item-qty pd-muted">
-                        <span>@T("Order.Product(s).Quantity"):</span> <span>@item.Quantity @item.QuantityUnit</span>
-                    </div>
-
-                    @* Subtotal *@
-                    <div sm-if="item.UnitPrice != item.SubTotal" class="pd-subtotal pd-muted">
-                        <span class="pd-subtotal-label">@T("Order.Product(s).Total"):</span>
-                        <data asp-for="@item.SubTotal" class="pd-subtotal-amount fwm"></data>
+                    <div sm-if="item.ReturnCases.Count > 0 && orderWithdrawalReturnCase == null" class="alert alert-info small mt-2 mb-0" role="status" aria-live="polite">
+                        <partial name="ReturnCase.Infos" model="item.ReturnCases" />
                     </div>
                 </div>
             </div>
@@ -188,25 +202,25 @@
 
             <div class="row mb-3">
                 <div class="col-6 col-sm-auto pb-3">
-                    <div class="text-muted h5">@T("Order.OrderDate")</div>
+                    <div class="text-muted h5 mb-1">@T("Order.OrderDate")</div>
                     <div>
                         <time asp-for="@Model.CreatedOn" sm-format="d"></time>
                     </div>
                 </div>
                 <div class="col-6 col-sm-auto pb-3">
-                    <div class="text-muted h5">@T("Order.Order#")</div>
+                    <div class="text-muted h5 mb-1">@T("Order.Order#")</div>
                     <div>@Model.OrderNumber</div>
                 </div>
                 <div sm-if="Model.DisplayPurchaseOrderNumber" class="col-6 col-sm-auto pb-3">
-                    <div class="text-muted h5">@T("Order.PurchaseOrderNumber")</div>
+                    <div class="text-muted h5 mb-1">@T("Order.PurchaseOrderNumber")</div>
                     <div>@Model.PurchaseOrderNumber</div>
                 </div>
                 <div class="col-6 col-sm-auto pb-3">
-                    <div class="text-muted h5">@T("Order.OrderStatus")</div>
+                    <div class="text-muted h5 mb-1">@T("Order.OrderStatus")</div>
                     <div>@Model.OrderStatus</div>
                 </div>
                 <div class="col-6 col-sm-auto pb-3">
-                    <div class="text-muted h5">@T("Order.OrderTotal")</div>
+                    <div class="text-muted h5 mb-1">@T("Order.OrderTotal")</div>
                     <div class="text-success-emphasis fwm">
                         <data asp-for="@Model.OrderTotal"></data>
                     </div>
@@ -272,26 +286,30 @@
 
                 @* Order Items *@
                 <div class="col-lg-7 col-xl-8">
+                    @* Show a single message if the entire order has been withdrawn. *@
+                    <div sm-if="orderWithdrawalReturnCase != null" class="alert alert-info" role="status" aria-live="polite">
+                        <div class="mb-1">@T("ReturnCase.OrderWithdrawn")</div>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-3">@T("Common.Status")</dt>
+                            <dd class="col-sm-9 mb-0">@T("ReturnCase.ReceivedWithdrawal")</dd>
+                            <dt class="col-sm-3">@T("Account.CustomerReturnRequests.Date")</dt>
+                            <dd class="col-sm-9 mb-0">
+                                <time asp-for="@orderWithdrawalReturnCase.CreatedOn" sm-format="g"></time>
+                            </dd>
+                        </dl>
+                    </div>
+
                     <div id="cart-items" class="cart">
                         <div class="cart-body">
                             @foreach (var item in Model.Items)
                             {
-                                if (item.ProductType == ProductType.BundledProduct)
+                                await SimpleProduct(item);
+                                if (item.ProductType == ProductType.BundledProduct && item.BundleItems != null)
                                 {
-                                    await SimpleProduct(item);
-
-                                    if (item.BundleItems != null)
+                                    for (var i = 0; i < item.BundleItems.Count; i++)
                                     {
-                                        var bundleItems = item.BundleItems.OrderBy(x => x.DisplayOrder).ToArray();
-                                        for (var i = 0; i < bundleItems.Length; i++)
-                                        {
-                                            await BundleProduct(bundleItems[i], item, i);
-                                        }
+                                        await BundleProduct(item.BundleItems[i], item, i);
                                     }
-                                }
-                                else
-                                {
-                                    await SimpleProduct(item);
                                 }
                             }
                         </div>
@@ -409,7 +427,7 @@
                                 <div sm-if="Model.Items.Count > 0" class="col-12 mt-2 cart-footer-actions" sm-suppress-if-empty>
                                     <zone name="orderdetails_buttons_before" />
 
-                                    <a sm-if="Model.IsReturnRequestAllowed" asp-action="ReturnRequest" asp-controller="ReturnRequest" asp-route-id="@Model.Id" class="btn btn-secondary btn-block" rel="nofollow">
+                                    <a sm-if="Model.CanReturnItems" asp-action="ReturnCase" asp-controller="ReturnCase" asp-route-id="@Model.Id" class="btn btn-secondary btn-block" rel="nofollow">
                                         <i class="fa fa-reply" aria-hidden="true"></i>
                                         <span>@T("Order.ReturnItems")</span>
                                     </a>

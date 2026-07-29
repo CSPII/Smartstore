@@ -29,6 +29,9 @@
     <LocaleResource Name="TabTitleProfiles">
         <Value>Export profiles</Value>
     </LocaleResource>
+    <LocaleResource Name="DeleteGmcData">
+        <Value>Deletes the Google data assigned to the product.</Value>
+    </LocaleResource>
     <LocaleResource Name="GeneralSettings">
         <Value>General settings</Value>
     </LocaleResource>
@@ -36,7 +39,16 @@
         <Value>Default values</Value>
     </LocaleResource>
     <LocaleResource Name="DefaultValueSettingsNote">
-        <Value>Default values will be exported if the information does not exist or is not available for a particular product. For a particular product, these values can be edited in the plugin configuration and the product edit page.</Value>
+        <Value>
+            <![CDATA[Default values will be exported if the information does not exist or is not available for a particular product. For a particular product, 
+these values can be edited in the plugin configuration and the product edit page. Google data is set for <strong>{0}</strong> of <strong>{1}</strong> products.]]>
+        </Value>
+    </LocaleResource>
+    <LocaleResource Name="ExportAllProducts">
+        <Value>Export all products</Value>
+    </LocaleResource>
+    <LocaleResource Name="ExportAllProducts.Hint">
+        <Value>Specifies whether all products are exported (default). If disabled, only products for which Google data is specified are exported.</Value>
     </LocaleResource>
     <LocaleResource Name="MissingDefaultCategory">
         <Value>Default Google category is not set</Value>
@@ -147,10 +159,10 @@
         <Value>SKU</Value>
     </LocaleResource>
     <LocaleResource Name="SearchIsTouched">
-        <Value>Edited</Value>
+        <Value>With Google data</Value>
     </LocaleResource>
     <LocaleResource Name="SearchIsTouched.Hint">
-        <Value>Searches for records which have or have not been edited yet.</Value>
+        <Value>Filters products for which Google data is stored.</Value>
     </LocaleResource>
     <LocaleResource Name="ExpirationDays">
         <Value>Expires in</Value>
