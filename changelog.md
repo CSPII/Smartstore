@@ -1,5 +1,19 @@
 # Release Notes
 
+## Smartstore 6.5.0
+
+### New Features
+
+- #1530 If a product is subsequently added to an order, update all price input controls with the price of the selected attribute combination.
+
+### Improvements
+
+### Bugfixes
+
+- Prevent a race condition in `TemplateZoneRenderingEvent` by eagerly resolving `TemplateName` from the DotLiquid context before publishing the event.
+- Withdrawal: Fixed a `SecurityException` when a return case is saved.
+
+
 ## Smartstore 6.4.0
 
 ### Breaking Changes
@@ -15,10 +29,13 @@
 - **Withdrawal** plugin (commercial)
   - Enables customers to submit withdrawals online for eligible orders and items.
   - Supports compliance with EU rules for digital withdrawal.
+- **Warranty** plugin (commercial)
+  - Enables the configuration and display of harmonised EU labels for legal guarantee and commercial guarantee of durability.
 - **AI**
   - New HTML text optimization command: **Organize**: Improves document structure and cleans up HTML markup.
   - #1445 Create a new image using the Media Manager.
   - Generate image: Quality levels (low, medium, or high) can now be specified, but only if the provider supports this feature.
+  - Automatic llms.txt generation  
 - **Required products**
   - Automatically added required products can no longer be removed separately from the cart.
   - Required products can now keep their quantity in sync with the main product.
