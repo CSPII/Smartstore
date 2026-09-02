@@ -420,11 +420,17 @@ public class StripeController : ModuleController
                 {
                     var settings = await Services.SettingFactory.LoadSettingsAsync<StripeSettings>(order.StoreId);
 
-                    // INFO: This can also be a partial capture.
-                    decimal convertedAmount = paymentIntent.Amount / 100M;
+                    // OrderTotal is stored in the primary currency.
+                    // CurrencyRate is the historical customer-currency conversion rate stored with the order.
+                    var expectedMoney = _currencyService.CreateMoney(order.OrderTotal * order.CurrencyRate, order.CustomerCurrencyCode);
+                    var expectedAmount = _roundingHelper.ToSmallestCurrencyUnit(expectedMoney);
 
-                    // Check if full order amount was captured.
-                    if (order.OrderTotal == convertedAmount)
+                    var currencyMatches = string.Equals(
+                    paymentIntent.Currency,
+                    order.CustomerCurrencyCode,
+                    StringComparison.OrdinalIgnoreCase);
+
+                    if (currencyMatches && paymentIntent.Amount == expectedAmount)
                     {
                         if (settings.CaptureMethod == "automatic" && order.CanMarkOrderAsPaid())
                         {
@@ -437,6 +443,14 @@ public class StripeController : ModuleController
                     }
                     else
                     {
+                        Logger.Warn(
+                            "Stripe payment mismatch for order {0}. Expected amount {1} {2}, received {3} {4}.",
+                            order.Id,
+                            expectedAmount,
+                            order.CustomerCurrencyCode,
+                            paymentIntent.Amount,
+                            paymentIntent.Currency);
+
                         order.PaymentStatus = PaymentStatus.Pending;
                         await _db.SaveChangesAsync();
                     }

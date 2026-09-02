@@ -31,6 +31,7 @@ public class StripeElementsProvider : PaymentMethodBase, IConfigurable
     private readonly ICheckoutStateAccessor _checkoutStateAccessor;
     private readonly IRoundingHelper _roundingHelper;
     private readonly ICacheManager _cache;
+    private readonly ICurrencyService _currencyService;
     private readonly StripeSettings _settings;
 
     public StripeElementsProvider(
@@ -40,6 +41,7 @@ public class StripeElementsProvider : PaymentMethodBase, IConfigurable
         ICheckoutStateAccessor checkoutStateAccessor,
         IRoundingHelper roundingHelper,
         ICacheManager cache,
+        ICurrencyService currencyService,
         StripeSettings settings)
     {
         _db = db;
@@ -48,6 +50,7 @@ public class StripeElementsProvider : PaymentMethodBase, IConfigurable
         _checkoutStateAccessor = checkoutStateAccessor;
         _roundingHelper = roundingHelper;
         _cache = cache;
+        _currencyService = currencyService;
         _settings = settings;
 
         // Ensure API is set with current module settings. 
@@ -132,7 +135,9 @@ public class StripeElementsProvider : PaymentMethodBase, IConfigurable
 
         if (request.IsPartialRefund)
         {
-            options.Amount = _roundingHelper.ToSmallestCurrencyUnit(request.AmountToRefund);
+            var refundAmountInCustomerCurrency = request.AmountToRefund.Amount * request.Order.CurrencyRate;
+            var refundMoney = _currencyService.CreateMoney( refundAmountInCustomerCurrency, request.Order.CustomerCurrencyCode);
+            options.Amount = _roundingHelper.ToSmallestCurrencyUnit(refundMoney);
         }
 
         var service = new RefundService();
