@@ -9,10 +9,11 @@ using Smartstore.Core.Localization;
 using Smartstore.Core.Logging;
 using Smartstore.Core.Stores;
 using Smartstore.Core.Web;
-using Smartstore.Engine.Modularity;
+using Smartstore.Core.Widgets;
 using Smartstore.Events;
 using Smartstore.Http;
 using Smartstore.Utilities.Html;
+using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace Smartstore.Core.Checkout.Orders;
 
@@ -30,12 +31,10 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
     private readonly IWebHelper _webHelper;
     private readonly IEventPublisher _eventPublisher;
     private readonly IShoppingCartValidator _shoppingCartValidator;
-    private readonly Lazy<IShoppingCartService> _shoppingCartService;
     private readonly IOrderProcessingService _orderProcessingService;
     private readonly IPaymentService _paymentService;
     private readonly ICheckoutFactory _checkoutFactory;
     private readonly ICheckoutStateAccessor _checkoutStateAccessor;
-    private readonly Lazy<ModuleManager> _moduleManager;
     private readonly OrderSettings _orderSettings;
     private readonly ShoppingCartSettings _shoppingCartSettings;
 
@@ -47,12 +46,10 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         IWebHelper webHelper,
         IEventPublisher eventPublisher,
         IShoppingCartValidator shoppingCartValidator,
-        Lazy<IShoppingCartService> shoppingCartService,
         IOrderProcessingService orderProcessingService,
         IPaymentService paymentService,
         ICheckoutFactory checkoutFactory,
         ICheckoutStateAccessor checkoutStateAccessor,
-        Lazy<ModuleManager> moduleManager,
         OrderSettings orderSettings,
         ShoppingCartSettings shoppingCartSettings)
     {
@@ -63,12 +60,10 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         _webHelper = webHelper;
         _eventPublisher = eventPublisher;
         _shoppingCartValidator = shoppingCartValidator;
-        _shoppingCartService = shoppingCartService;
         _orderProcessingService = orderProcessingService;
         _paymentService = paymentService;
         _checkoutFactory = checkoutFactory;
         _checkoutStateAccessor = checkoutStateAccessor;
-        _moduleManager = moduleManager;
         _orderSettings = orderSettings;
         _shoppingCartSettings = shoppingCartSettings;
     }
@@ -184,6 +179,49 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         return new(result.Errors, result.ViewPath, true);
     }
 
+    public virtual async Task<CheckoutResult> RefreshAsync(CheckoutContext context)
+    {
+        Guard.NotNull(context);
+        Guard.NotNull(context.Parts);
+
+        var preliminaryResult = Preliminary(context);
+        if (preliminaryResult != null)
+        {
+            return new(false);
+        }
+
+        var step = _checkoutFactory.GetCheckoutStep(context);
+        if (step == null)
+        {
+            return new(false);
+        }
+
+        var result = await step.Handler.Value.RefreshAsync(context);
+        if (result.ActionResult != null)
+        {
+            return result;
+        }
+
+        var parts = context.Parts.Value;
+        if (parts.HasFlag(CheckoutPartial.OrderTotals))
+        {
+            result.Widgets[CheckoutPartial.OrderTotals] = new ComponentWidget("OrderTotals", null);
+        }
+
+        if (parts.HasFlag(CheckoutPartial.PaymentInfo)
+            && context.Model is string systemName)
+        {
+            var paymentMethod = await _paymentService.LoadPaymentProviderBySystemNameAsync(systemName);
+            var widget = paymentMethod?.Value?.GetPaymentInfoWidget();
+            if (widget != null)
+            {
+                result.Widgets[CheckoutPartial.PaymentInfo] = widget;
+            }
+        }
+
+        return result;
+    }
+
     public virtual async Task<CheckoutResult> AdvanceAsync(CheckoutContext context)
     {
         Guard.NotNull(context);
@@ -256,6 +294,12 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
             var customer = context.Cart.Customer;
             var paymentMethod = customer.GenericAttributes.SelectedPaymentMethod;
 
+            var validationResult = await PublishValidatingCartEvent(context);
+            if (validationResult != null)
+            {
+                return validationResult;
+            }
+
             context.HttpContext.Session.TryGetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, out var paymentRequest);
             paymentRequest ??= new();
             paymentRequest.StoreId = store.Id;
@@ -288,11 +332,7 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
                 return new(true);
             }
 
-            // Keep the form values in the checkout state so that they are not lost when the user is redirected to the payment provider's page.
-            var state = _checkoutStateAccessor.CheckoutState;
-            state.CustomerComment = context.GetFormValue<string>("customercommenthidden");
-            state.SubscribeToNewsletter = context.GetFormValue<bool>(SubscribeToNewsletterKey);
-            state.AcceptThirdPartyEmailHandOver = context.GetFormValue<bool>(AcceptThirdPartyEmailHandOverKey);
+            customer.GenericAttributes.CheckoutOrderData = GetCheckoutOrderData(context);
 
             return new(new RedirectResult(url), confirmStep.ViewPath, true);
         }
@@ -316,106 +356,113 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         Guard.NotNull(context);
 
         CheckoutResult result = null;
-        var paymentType = PaymentMethodType.Standard;
+        OrderPlacementResult placeOrderResult = null;
         var confirmStep = Guard.NotNull(_checkoutFactory.GetCheckoutStep(CheckoutActionNames.Confirm));
+        var paymentType = PaymentMethodType.Standard;
+        var store = _storeContext.CurrentStore;
+        var customer = context.Cart.Customer;
+        var paymentMethod = customer.GenericAttributes.SelectedPaymentMethod;
+
+        context.HttpContext.Session.TryGetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, out var paymentRequest);
+
+        if (paymentRequest != null 
+            && paymentRequest.OrderGuid != Guid.Empty
+            && await _db.Orders.AnyAsync(x => x.OrderGuid == paymentRequest.OrderGuid && x.CustomerId == customer.Id && x.StoreId == store.Id))
+        {
+            // The order has already been recovered. The payment plugin was faster. Further processing would result
+            // in the error message "Payment.CouldNotLoadMethod" (see below), because "ResetCheckoutData" has been executed.
+            //
+            // INFO: This order GUID check is unnecessary in "CompleteAsync" because order recoveries only occur when the
+            // "IPaymentMethod.RequiresConfirmation" property is set to "true".
+            ResetSession(context);
+            return new(RedirectToCheckout(CheckoutActionNames.Completed), confirmStep.ViewPath, true);
+        }
 
         try
         {
-            var store = _storeContext.CurrentStore;
-            var customer = context.Cart.Customer;
-            var paymentMethod = customer.GenericAttributes.SelectedPaymentMethod;
-
-            context.HttpContext.Session.TryGetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, out var paymentRequest);
             paymentRequest ??= new();
             paymentRequest.StoreId = store.Id;
             paymentRequest.CustomerId = customer.Id;
             paymentRequest.PaymentMethodSystemName = paymentMethod;
 
             var provider = await _paymentService.LoadPaymentProviderBySystemNameAsync(paymentMethod);
-            paymentType = provider.Metadata.PaymentMethodType;
-
             if (provider == null || !provider.Value.RequiresConfirmation)
             {
                 throw new Exception(T("Payment.CouldNotLoadMethod"),
                     new Exception($"Cannot complete the payment. The Payment provider {paymentMethod} could not be loaded or does not support payment confirmation."));
             }
 
+            paymentType = provider?.Metadata?.PaymentMethodType ?? PaymentMethodType.Standard;
+
             if (await provider.Value.CompletePaymentAsync(paymentRequest, context))
             {
                 // Payment completed successfully. Place the order.
-                var state = _checkoutStateAccessor.CheckoutState;
-                var placeOrderResult = await _orderProcessingService.PlaceOrderAsync(paymentRequest, new()
-                {
-                    [CustomerCommentKey] = state.CustomerComment,
-                    [SubscribeToNewsletterKey] = state.SubscribeToNewsletter.ToString().ToLower(),
-                    [AcceptThirdPartyEmailHandOverKey] = state.AcceptThirdPartyEmailHandOver.ToString().ToLower()
-                });
-
-                if (placeOrderResult.Success)
-                {
-                    result = await PostProcessPayment(placeOrderResult, confirmStep, context);
-                }
-                else
-                {
-                    var cart = context.Cart;
-                    if (customer.Id != paymentRequest.CustomerId)
-                    {
-                        // INFO: The payment provider may have changed the customer through ProcessPaymentRequest.CustomerId.
-                        customer = await _db.Customers.FindByIdAsync(paymentRequest.CustomerId);
-                        cart = await _shoppingCartService.Value.GetCartAsync(customer, ShoppingCartType.ShoppingCart, store.Id);
-                    }
-
-                    if (cart?.HasItems ?? false)
-                    {
-                        // We should never end up here. We have received a payment but the order placement failed!
-                        _logger.Error(new Exception($"The payment with {paymentMethod} succeeded but the order placement failed! Order: {paymentRequest.OrderGuid}. Customer: {cart.Customer.Id}.",
-                            new Exception(string.Join(Environment.NewLine, placeOrderResult.Errors))));
-                    }
-                }
+                placeOrderResult = await _orderProcessingService.PlaceOrderAsync(paymentRequest);
             }
+        }
+        catch (PaymentException ex)
+        {
+            // A payment-related error always takes precedence over a generic error.
+            // The buyer should only see a simple, general payment message here.
+            _logger.Error(ex);
+            _notifier.Error(ex.Message);
+            return GetDefaultResult();
         }
         catch (Exception ex)
         {
-            _logger.Error(ex);
-            _notifier.Error(ex.Message);
-        }
-        finally
-        {
-            context.HttpContext.Session.TrySetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, null);
-            _checkoutStateAccessor.Abandon();
+            if (await ProcessOrderPlacementException(ex, customer.Id, true))
+            {
+                return new(RedirectToCheckout(CheckoutActionNames.Completed), confirmStep.ViewPath, true);
+            }
+            else
+            {
+                _notifier.Error(ex.Message);
+                return GetDefaultResult();
+            }
         }
 
-        result ??= new(paymentType == PaymentMethodType.Button ? RedirectToCart() : RedirectToCheckout(CheckoutActionNames.PaymentMethod), confirmStep.ViewPath);
-        return result;
+        if (placeOrderResult != null 
+            && placeOrderResult.Success 
+            && placeOrderResult.PlacedOrder != null)
+        {
+            try
+            {
+                result = await PostProcessPayment(placeOrderResult, confirmStep);
+            }
+            catch (Exception ex)
+            {
+                _notifier.Error(ex.Message);
+            }
+            finally
+            {
+                ResetSession(context);
+            }
+        }
+
+        return result ?? GetDefaultResult();
+
+        CheckoutResult GetDefaultResult()
+            => new(paymentType == PaymentMethodType.Button ? RedirectToCart() : RedirectToCheckout(CheckoutActionNames.PaymentMethod), confirmStep.ViewPath);
     }
 
     public virtual async Task<CheckoutResult> CompleteAsync(CheckoutContext context)
     {
         Guard.NotNull(context);
 
-        var confirmStep = Guard.NotNull(_checkoutFactory.GetCheckoutStep(CheckoutActionNames.Confirm));
-
-        var warnings = new List<string>();
-        var store = _storeContext.CurrentStore;
-        var cart = context.Cart;
         OrderPlacementResult placeOrderResult = null;
+        var confirmStep = Guard.NotNull(_checkoutFactory.GetCheckoutStep(CheckoutActionNames.Confirm));
+        var cart = context.Cart;
+        var store = _storeContext.CurrentStore;
+        var customer = cart.Customer;
 
-        var validatingCartEvent = new ValidatingCartEvent(cart, warnings);
-        await _eventPublisher.PublishAsync(validatingCartEvent);
-
-        if (validatingCartEvent.Result != null)
+        var validationResult = await PublishValidatingCartEvent(context);
+        if (validationResult != null)
         {
-            return new(validatingCartEvent.Result);
-        }
-
-        if (warnings.Count > 0)
-        {
-            warnings.Take(_maxWarnings).Each(x => _notifier.Warning(x));
-            return new(RedirectToCart());
+            return validationResult;
         }
 
         // Prevent two orders from being placed within a time span of x seconds.
-        if (!await _orderProcessingService.IsMinimumOrderPlacementIntervalValidAsync(cart.Customer, store))
+        if (!await _orderProcessingService.IsMinimumOrderPlacementIntervalValidAsync(customer, store))
         {
             _notifier.Warning(T("Checkout.MinOrderPlacementInterval"));
             return new(confirmStep.GetActionResult(context), confirmStep.ViewPath);
@@ -426,28 +473,56 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
             context.HttpContext.Session.TryGetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, out var paymentRequest);
             paymentRequest ??= new();
             paymentRequest.StoreId = store.Id;
-            paymentRequest.CustomerId = cart.Customer.Id;
-            paymentRequest.PaymentMethodSystemName = cart.Customer.GenericAttributes.SelectedPaymentMethod;
+            paymentRequest.CustomerId = customer.Id;
+            paymentRequest.PaymentMethodSystemName = customer.GenericAttributes.SelectedPaymentMethod;
 
-            placeOrderResult = await _orderProcessingService.PlaceOrderAsync(paymentRequest, new()
-            {
-                [CustomerCommentKey] = context.GetFormValue<string>("customercommenthidden"),
-                [SubscribeToNewsletterKey] = context.GetFormValue<string>(SubscribeToNewsletterKey),
-                [AcceptThirdPartyEmailHandOverKey] = context.GetFormValue<string>(AcceptThirdPartyEmailHandOverKey)
-            });
+            customer.GenericAttributes.CheckoutOrderData = GetCheckoutOrderData(context);
+
+            placeOrderResult = await _orderProcessingService.PlaceOrderAsync(paymentRequest);
         }
         catch (PaymentException ex)
         {
+            // A payment-related error always takes precedence over a generic error.
+            // The buyer should only see a simple, general payment message here.
             return CreateResult(ex, context);
         }
         catch (Exception ex)
         {
-            _logger.Error(ex);
-
-            return new(ex.Message, confirmStep.ViewPath);
+            if (await ProcessOrderPlacementException(ex, customer.Id))
+            {
+                return new(RedirectToCheckout(CheckoutActionNames.Completed), confirmStep.ViewPath, true);
+            }
+            else
+            {
+                return new(ex.Message, confirmStep.ViewPath);
+            }
         }
 
-        if (placeOrderResult == null || !placeOrderResult.Success)
+        if (placeOrderResult != null
+            && placeOrderResult.Success
+            && placeOrderResult.PlacedOrder != null)
+        {
+            CheckoutResult result = null;
+            try
+            {
+                result = await PostProcessPayment(placeOrderResult, confirmStep);
+            }
+            catch (PaymentException ex)
+            {
+                result = CreateResult(ex, context);
+            }
+            catch (Exception ex)
+            {
+                _notifier.Error(ex.Message);
+            }
+            finally
+            {
+                ResetSession(context);
+            }
+
+            return result ?? new(RedirectToCheckout(CheckoutActionNames.Completed));
+        }
+        else
         {
             var errors = placeOrderResult?.Errors
                 ?.Take(_maxWarnings)
@@ -456,30 +531,9 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
 
             return new(errors, confirmStep.ViewPath);
         }
-
-        CheckoutResult result = null;
-        try
-        {
-            result = await PostProcessPayment(placeOrderResult, confirmStep, context);
-        }
-        catch (PaymentException ex)
-        {
-            result = CreateResult(ex, context);
-        }
-        catch (Exception ex)
-        {
-            _notifier.Error(ex.Message);
-        }
-        finally
-        {
-            context.HttpContext.Session.TrySetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, null);
-            _checkoutStateAccessor.Abandon();
-        }
-
-        return result ?? new(RedirectToCheckout(CheckoutActionNames.Completed));
     }
 
-    private async Task<CheckoutResult> PostProcessPayment(OrderPlacementResult placeOrderResult, CheckoutStep step, CheckoutContext context)
+    private async Task<CheckoutResult> PostProcessPayment(OrderPlacementResult placeOrderResult, CheckoutStep step)
     {
         var postPaymentRequest = new PostProcessPaymentRequest
         {
@@ -494,6 +548,16 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         }
 
         return new(RedirectToCheckout(CheckoutActionNames.Completed), step.ViewPath, true);
+    }
+
+    private static Dictionary<string, string> GetCheckoutOrderData(CheckoutContext context)
+    {
+        return new()
+        {
+            [CustomerCommentKey] = context.GetFormValue<string>("customercommenthidden"),
+            [SubscribeToNewsletterKey] = context.GetFormValue<string>(SubscribeToNewsletterKey),
+            [AcceptThirdPartyEmailHandOverKey] = context.GetFormValue<string>(AcceptThirdPartyEmailHandOverKey)
+        };
     }
 
     /// <summary>
@@ -551,7 +615,6 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
 
         if (path.HasValue())
         {
-            var values = new RouteValueDictionary();
             var template = TemplateParser.Parse("{controller}/{action}/{id?}");
             var matcher = new TemplateMatcher(template, []);
             matcher.TryMatch(path, routeValues);
@@ -589,6 +652,27 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         return result;
     }
 
+    private async Task<CheckoutResult> PublishValidatingCartEvent(CheckoutContext context)
+    {
+        var warnings = new List<string>();
+        var result = new ValidatingCartEvent(context.Cart, warnings);
+
+        await _eventPublisher.PublishAsync(result);
+
+        if (result.Result != null)
+        {
+            return new(result.Result);
+        }
+
+        if (warnings.Count > 0)
+        {
+            warnings.Take(_maxWarnings).Each(x => _notifier.Warning(x));
+            return new(RedirectToCart());
+        }
+
+        return null;
+    }
+
     private CheckoutResult CreateResult(PaymentException ex, CheckoutContext context)
     {
         if (ex.RedirectRoute is not string)
@@ -615,6 +699,24 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
         return new(paymentStep.GetActionResult(context), paymentStep.ViewPath);
     }
 
+    private async Task<bool> ProcessOrderPlacementException(Exception ex, int customerId, bool notify = false)
+    {
+        var isDuplicatePaymentReference = await _orderProcessingService.IsDuplicatePaymentReferenceAsync(ex);
+        var msg = T(isDuplicatePaymentReference ? "Order.AlreadyExists" : "Order.PlaceOrderError", customerId);
+
+        _logger.Log(
+            isDuplicatePaymentReference ? MsLogLevel.Warning : MsLogLevel.Error, 
+            ex, 
+            msg);
+
+        if (notify && !isDuplicatePaymentReference)
+        {
+            _notifier.Error(msg);
+        }
+
+        return isDuplicatePaymentReference;
+    }
+
     private static RedirectToActionResult RedirectToCheckout(string action)
         => new(action, "Checkout", null);
 
@@ -622,4 +724,10 @@ public partial class CheckoutWorkflow : ICheckoutWorkflow
     // In CheckoutWorkflow always use RedirectToActionResult with controller and action name.
     private static RedirectToActionResult RedirectToCart()
         => new("Cart", "ShoppingCart", null);
+
+    private void ResetSession(CheckoutContext context)
+    {
+        context.HttpContext.Session.TrySetObject<ProcessPaymentRequest>(CheckoutState.OrderPaymentInfoName, null);
+        _checkoutStateAccessor.Abandon();
+    }
 }

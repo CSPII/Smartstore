@@ -1,8 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
-using Smartstore.ComponentModel;
+﻿using Smartstore.ComponentModel;
 using Smartstore.Core.Checkout.Cart;
 using Smartstore.Core.Checkout.Orders;
-using Smartstore.Core.Checkout.Payment;
 using Smartstore.Core.Localization.Routing;
 using Smartstore.Core.Seo.Routing;
 using Smartstore.Core.Stores;
@@ -19,7 +17,6 @@ public class CheckoutController : PublicController
     private readonly IStoreContext _storeContext;
     private readonly IWorkContext _workContext;
     private readonly ICheckoutWorkflow _checkoutWorkflow;
-    private readonly IPaymentService _paymentService;
     private readonly IShoppingCartService _shoppingCartService;
     private readonly ICheckoutStateAccessor _checkoutStateAccessor;
     private readonly OrderSettings _orderSettings;
@@ -30,7 +27,6 @@ public class CheckoutController : PublicController
         IStoreContext storeContext,
         IWorkContext workContext,
         ICheckoutWorkflow checkoutWorkflow,
-        IPaymentService paymentService,
         IShoppingCartService shoppingCartService,
         ICheckoutStateAccessor checkoutStateAccessor,
         OrderSettings orderSettings,
@@ -40,7 +36,6 @@ public class CheckoutController : PublicController
         _storeContext = storeContext;
         _workContext = workContext;
         _checkoutWorkflow = checkoutWorkflow;
-        _paymentService = paymentService;
         _shoppingCartService = shoppingCartService;
         _checkoutStateAccessor = checkoutStateAccessor;
         _orderSettings = orderSettings;
@@ -244,7 +239,7 @@ public class CheckoutController : PublicController
 
     [HttpPost, ActionName(CheckoutActionNames.PaymentMethod)]
     [FormValueRequired("nextstep")]
-    public async Task<IActionResult> SelectPaymentMethod(string paymentMethod, IFormCollection form)
+    public async Task<IActionResult> SelectPaymentMethod(string paymentMethod)
     {
         var result = await _checkoutWorkflow.AdvanceAsync(await CreateCheckoutContext(paymentMethod));
 
@@ -258,38 +253,71 @@ public class CheckoutController : PublicController
         return result.ActionResult ?? RedirectToAction(nameof(PaymentMethod));
     }
 
+    /// <summary>
+    /// AJAX. Refreshes a part of the current checkout page.
+    /// </summary>
     [HttpPost]
-    public async Task<IActionResult> PaymentInfoAjax(string paymentMethodSystemName)
+    public async Task<IActionResult> Refresh(CheckoutRefreshModel model)
     {
-        if (!_orderSettings.AnonymousCheckoutAllowed && !_workContext.CurrentCustomer.IsRegistered())
-        {
-            return new EmptyResult();
-        }
-
-        var paymentMethod = await _paymentService.LoadPaymentProviderBySystemNameAsync(paymentMethodSystemName);
-        if (paymentMethod == null)
-        {
-            return new NotFoundResult();
-        }
-
-        var infoWidget = paymentMethod.Value.GetPaymentInfoWidget();
-        if (infoWidget == null)
-        {
-            return new EmptyResult();
-        }
+        var success = false;
+        var contents = new Dictionary<int, string>();
 
         try
         {
-            var widgetContent = await infoWidget.InvokeAsync(new WidgetContext(ControllerContext));
-            return Content(widgetContent.ToHtmlString().ToString());
+            var cart = await _shoppingCartService.GetCartAsync(storeId: _storeContext.CurrentStore.Id);
+            var context = new CheckoutContext(cart, HttpContext, Url)
+            {
+                Model = GetContextModel(),
+                Parts = model.Parts,
+                RouteValues = new(new
+                {
+                    action = model.ActionName,
+                    controller = "Checkout",
+                    area = string.Empty
+                })
+            };
+
+            var result = await _checkoutWorkflow.RefreshAsync(context);
+            
+            success = result.Success;
+            result.Errors.Take(3).Each(x => NotifyError(x.ErrorMessage));
+
+            if (result.ActionResult != null)
+            {
+                return result.ActionResult;
+            }
+
+            foreach (var widget in result.Widgets)
+            {
+                var widgetContent = await widget.Value.InvokeAsync(new WidgetContext(ControllerContext));
+                contents[(int)widget.Key] = widgetContent.ToHtmlString().ToString();
+            }
         }
         catch (Exception ex)
         {
-            // Log all but do not display inner exceptions.
             Logger.Error(ex);
             NotifyError(ex.Message);
+        }
 
-            return new EmptyResult();
+        return Json(new 
+        {
+            success,
+            contents
+        });
+
+        string GetContextModel()
+        {
+            if (model.ActionName.EqualsNoCase(CheckoutActionNames.PaymentMethod))
+            {
+                return model.PaymentMethodSystemName;
+            }
+
+            if (model.ActionName.EqualsNoCase(CheckoutActionNames.ShippingMethod))
+            {
+                return model.ShippingOption;
+            }
+
+            return null;
         }
     }
 
@@ -301,7 +329,7 @@ public class CheckoutController : PublicController
     public async Task<IActionResult> ConfirmPayment()
     {
         var result = await _checkoutWorkflow.ConfirmPaymentAsync(await CreateCheckoutContext());
-        var redirectUrl = result.ActionResult is RedirectResult rs ? rs?.Url.NullEmpty() : null;
+        var redirectUrl = GetUrl(result.ActionResult);
         var errors = result.Errors.Select(e => e.ErrorMessage).ToList();
 
         if (redirectUrl != null && errors.Count > 0)
@@ -311,7 +339,7 @@ public class CheckoutController : PublicController
         }
 
         // Success: If redirectUrl is provided, redirect to a third-party payment page to confirm the payment. Otherwise, place the order.
-        // Failure: Stay on confirmation page and display error messages.
+        // Failure: Stay on confirmation page and display error messages, except a redirectUrl is provided.
         // Exception: Redirect to payment selection page and display notification (default case of a payment error).
         return Json(new
         {
@@ -330,6 +358,7 @@ public class CheckoutController : PublicController
     /// Without cookies we would get a new guest customer and an empty checkout state object here. In this case, CheckoutState could not be used.
     /// We would have to either cache state obejct for x minutes or store it in the database.
     /// </remarks>
+    [SaveChanges<SmartDbContext>(false)]
     public async Task<IActionResult> PaymentCompleted()
     {
         var result = await _checkoutWorkflow.CompletePaymentAsync(await CreateCheckoutContext());
@@ -352,6 +381,7 @@ public class CheckoutController : PublicController
     }
 
     [HttpPost, ActionName(CheckoutActionNames.Confirm)]
+    [SaveChanges<SmartDbContext>(false)]
     public async Task<IActionResult> ConfirmOrder()
     {
         var result = await _checkoutWorkflow.CompleteAsync(await CreateCheckoutContext());
@@ -407,9 +437,22 @@ public class CheckoutController : PublicController
     {
         var cart = await _shoppingCartService.GetCartAsync(storeId: _storeContext.CurrentStore.Id);
 
-        return new(cart, HttpContext, Url)
+        return new CheckoutContext(cart, HttpContext, Url)
         {
             Model = model
         };
+    }
+
+    private string GetUrl(IActionResult result)
+    {
+        var url = result switch
+        {
+            RedirectToRouteResult route => Url.RouteUrl(route.RouteName, route.RouteValues),
+            RedirectToActionResult action => Url.Action(action.ActionName, action.ControllerName, action.RouteValues),
+            RedirectResult direct => direct.Url,
+            _ => null
+        };
+
+        return url.NullEmpty();
     }
 }

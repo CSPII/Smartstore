@@ -146,12 +146,16 @@ public partial interface IOrderProcessingService
     /// Places an order.
     /// </summary>
     /// <param name="paymentRequest">Payment processing request.</param>
-    /// <param name="extraData">Additional data to be taken into account when placing the order.</param>
     /// <returns>Order placement result.</returns>
-    Task<OrderPlacementResult> PlaceOrderAsync(
-        ProcessPaymentRequest paymentRequest,
-        Dictionary<string, string> extraData,
-        CancellationToken cancelToken = default);
+    Task<OrderPlacementResult> PlaceOrderAsync(ProcessPaymentRequest paymentRequest, CancellationToken cancelToken = default);
+
+    /// <summary>
+    /// Recovers an order after a payment has been made but the order was not placed accidentally 
+    /// (e.g. the browser window was closed before the user was redirected to the shop).
+    /// </summary>
+    /// <param name="data">Data required for order recovery.</param>
+    /// <returns>Order placement result.</returns>
+    Task<OrderPlacementResult> RecoverOrderAsync(OrderRecoveryData data, CancellationToken cancelToken = default);
 
     /// <summary>
     /// Checks whether an order can be placed.
@@ -280,6 +284,14 @@ public partial interface IOrderProcessingService
     /// </summary>
     /// <param name="recurringPayment">Recurring payment.</param>
     Task ProcessNextRecurringPaymentAsync(RecurringPayment recurringPayment);
+
+    /// <summary>
+    /// Checks whether the exception is caused by a duplicate payment reference.
+    /// A duplicate payment occurs when a payment reference is already used for another order.
+    /// </summary>
+    /// <param name="ex">The exception to check.</param>
+    /// <returns><c>True</c> if the exception is caused by a duplicate payment reference, otherwise <c>false</c>.</returns>
+    Task<bool> IsDuplicatePaymentReferenceAsync(Exception ex);
 
     #endregion
 }

@@ -11,7 +11,7 @@
     var warnings = ViewBag.Warnings as List<string>;
 }
 
-<script src="~/admin/js/admin.taxconverter.js" sm-target-zone="scripts" sm-key="tax-converter"></script>
+<script src="~/admin/js/admin.taxcalculator.js" sm-target-zone="scripts" sm-key="tax-calculator"></script>
 
 @*We add enctype = "multipart/form-data" because "File upload" attribute control type requries it.*@
 <form id="AddProductToOrderForm" method="post" asp-action="AddProductToOrder" asp-route-orderId="@Model.OrderId" asp-route-productId="@Model.ProductId" enctype="multipart/form-data">
@@ -99,36 +99,44 @@
 
 <script sm-target-zone="scripts" data-origin="add-product-to-order">
     $(function () {
-        applyCommonPlugins($('#AddProductAttributeContainer'));
-        
-        $('#AddProductToOrderForm').on('change', '#Quantity, .attribute-list, .attribute-list-item', () => {
-            $({}).ajax({
-                type: 'POST',
-                url: '@Url.Action("UpdateProductPrices")',
-                data: $('#AddProductToOrderForm').serialize(),
-                success: (response) => {
-                    if (response.success) {
-                        const $elPrices = $('#AddProductToOrderPrices');
-                        $elPrices.html(response.prices);
-                        applyCommonPlugins($elPrices);
-                    }
-                }
-            });
-        });
+		applyCommonPlugins($('#AddProductAttributeContainer'));
 
-        window.taxConverterRes = {
-		    @foreach (var key in new[]
-            {
-                "Admin.Common.TaxConversion.Enable",
-                "Admin.Common.TaxConversion.Disable"
-            })
-            {
-			    <text>"@(Html.Raw(key))": @(T(key).JsValue),</text>
-		    }
-        };
+		const taxCalc = new Smartstore.Admin.TaxCalculator({
+			rootSelector: '#AddProductToOrderForm',
+			pricesIncludeTax: @(TaxSettings.PricesIncludeTax.ToStringLower()),
+            decimals: @((int)ViewBag.PrimaryCurrencyDecimals),
+			res: {
+				@foreach (var key in new[]
+				{
+					"Admin.Common.TaxCalculator.Enable",
+					"Admin.Common.TaxCalculator.Disable"
+				})
+				{
+					<text>"@(Html.Raw(key))": @(T(key).JsValue),</text>
+				}
+			}
+		});
 
-        Smartstore.Admin.taxConverter.initialize('#AddProductToOrderForm', {
-            pricesIncludeTax: @(TaxSettings.PricesIncludeTax.ToStringLower())
-        });
-    });
+		$('#AddProductToOrderForm').on('change', '#Quantity, .attribute-list, .attribute-list-item', () => {
+			$({}).ajax({
+				type: 'POST',
+				url: '@Url.Action("UpdateProductPrices")',
+				data: $('#AddProductToOrderForm').serialize(),
+				success: (response) => {
+					if (response.success) {
+						taxCalc.lock(true);
+
+						try {
+							const $elPrices = $('#AddProductToOrderPrices');
+							$elPrices.html(response.prices);
+							applyCommonPlugins($elPrices);
+						}
+						finally {
+							taxCalc.lock(false);
+						}
+					}
+				}
+			});
+		});
+	});
 </script>

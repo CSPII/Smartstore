@@ -4,17 +4,70 @@
 
 ### New Features
 
+- (DEV) Added an extensible admin dashboard widget infrastructure with responsive layouts.
+- **AI**
+  - Added configurable **reasoning effort levels** for supported AI models across providers, including model-specific defaults and automatic persistence of user selections.
 - #1530 If a product is subsequently added to an order, update all price input controls with the price of the selected attribute combination.
+- Automated tax and total calculations now ensure that gross and net prices, as well as line and order totals, update instantly when editing orders or order items.
+- Enforce `MaxDownloadFileSize` in `DownloadManager` via the global `appsettings.json` setting (default: 50 MB).
+- Added generic reverse-proxy-based bot detection support to improve bot/human classification in proxied setups.
 
 ### Improvements
 
+- SSRF guard for media downloads.
+- Withdrawal: Case-insensitive email check.
+- **GeoBlocker**: 
+  - A whitelisted IP address was still blocked when its country was blocked, although IP addresses take precedence.
+  - Literal IP addresses are matched directly instead of by regex, which makes large lists cheap.
+- (DEV) `Wildcard`: Matching is culture-invariant by default (override via `Wildcard.DefaultOptions`), number ranges no longer capture, and a match timeout can be passed for untrusted input.
+- Checkout: The updated total is displayed immediately when the shipping or payment method is changed.
+- **Theming**: 
+  - Made `.prose` font-size and line-height configurable.
+  - New theme variable `$enable-alert-icons` (`false` by default)
+
 ### Bugfixes
 
+- `GridCommand.Sorting` lost after session roundtrip.
 - Prevent a race condition in `TemplateZoneRenderingEvent` by eagerly resolving `TemplateName` from the DotLiquid context before publishing the event.
-- Withdrawal: Fixed a `SecurityException` when a return case is saved.
+- **Scheduled tasks** could get permanently stuck and never execute again due to stale `IsRunning = true` history entries that were never cleaned up after an abnormal abort.
+- **PostFinance**: 
+  - Fixed missing orders even though the payment was successful.
+  - #1544 Online partial refunds are booked twice (locally and via the following webhook).
+- **Skrill**: Fixed missing orders even though the payment was successful.
+- The **EasyCredit** calculator widget cannot be serialised on the product detail page when output cache is active.
+- **Withdrawal**:
+  - Allow immediate withdrawal regardless of when the withdrawal period begins.
+  - Fixed a `SecurityException` when a return case is saved.
+  - Emails were not sent to customers.
+  - #1550 Clearly distinguish between the terms "withdrawal" and "return", and do not use "withdrawal" when referring to returns.
+  - Fixed missing order number in JSON deserialization of `WithdrawalRequest`.
+  - "Challenge" instead of "Forbid" for a customer who has already logged in but has not been authorized.
+- #1575 Newsletter reward points are not awarded during customer registration.
+- MegaSearch: A single letter in the search term may incorrectly result in 0 search results if "Hits contain all searched terms" is enabled.
+- Currency: Edit page did not select/display the saved denominator for order total rounding.
+- Google Analytics: Fixed script error when obtaining the category path.
+- PageBuilder: Fixed JSON conversion error for background overlay.
+- **Warranty**:
+  - Labels disappeared after `UpdateProductDetails` was called when switching a variant.
+  - The manufacturer is displayed on the product detail page even though the catalog setting is disabled.
+- JsonLd:
+  - Removed duplicate reference of the *Product* entity.
+  - Restored application of `SeoSettings.ProductDescriptionPriority`.
+  - Fixed wrong ID usage for the long description.
+- Fixed bulk `ExecuteDelete` for MySQL/MariaDB
+- MegaMenu: Fixed `DependencyResolutionException` caused by `MegaMenuService` when creating Web API keys in the Web API plugin.
+- Fixed a bug that could cause long-running exports to fail with `ObjectDisposedException` when the underlying service scope was disposed while the export was still running.
+- The multi-store settings for offline payment methods could not be configured.
+- Fixed script error "ce.easing[this.easing] is not a function" on installation page.
+- When adding a group of attribute rules, the attribute that is currently being edited must not be included in the list of product attributes.
+- #1567 SQLite error when clearing logs: No such column "Log".
+- **Select2**: 
+  - Clear the search input after adding a custom tag to a multiselect.
+  - Clicking "Add rule" selects itself rather than opening the page to create a rule.
 
 
 ## Smartstore 6.4.0
+
 
 ### Breaking Changes
 

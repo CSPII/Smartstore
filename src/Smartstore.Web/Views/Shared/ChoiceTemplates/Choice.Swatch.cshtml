@@ -1,0 +1,177 @@
+﻿@model ChoiceModel
+
+@{
+    // TODO: Default swatch size for bundle items should be "Small"
+}
+
+@{
+    var controlId = Model.BuildControlId();
+    var items = Model.Values ?? new List<ChoiceItemModel>();
+    var srLabelTemplate = T("Aria.Label.Choice");
+
+    var allItemsHaveMedia = items.Count > 0 && items.All(x =>
+        x.ImageUrl.HasValue() || (x.Color.HasValue() && x.Color != "transparent"));
+
+    // TEST
+    if (allItemsHaveMedia)
+    {
+        Model.SwatchSize = SwatchSize.Medium;
+        Model.SwatchShape = SwatchShape.Rounded;
+        // Model.SwatchAspectRatio = 0.5m;
+        // Model.ShowValueNameInSwatch = true;
+        // Model.ShowPriceInSwatch = true;
+    }
+    // TEST
+
+    var sizeClass = Model.SwatchSize switch
+    {
+        SwatchSize.ExtraSmall => "xs",
+        SwatchSize.Small => "sm",
+        SwatchSize.Large => "lg",
+        SwatchSize.ExtraLarge => "xl",
+        SwatchSize.ExtraExtraLarge => "xxl",
+        _ => "md"
+    };
+
+    var anyItemHasMedia = items.Any(x =>
+        x.ImageUrl.HasValue() || (x.Color.HasValue() && x.Color != "transparent"));
+    var hasTextOnlyItems = items.Any(x =>
+        x.ImageUrl.IsEmpty() && (x.Color.IsEmpty() || x.Color == "transparent"));
+    var wantsMediaCard = Model.ShowValueNameInSwatch || Model.ShowPriceInSwatch;
+    var isMediaCardSize = Model.SwatchSize >= SwatchSize.Large;
+    var isMediaCard = allItemsHaveMedia && wantsMediaCard && isMediaCardSize;
+
+    var effectiveShape = Model.SwatchShape;
+    if (effectiveShape == SwatchShape.Circle && (isMediaCard || hasTextOnlyItems))
+    {
+        effectiveShape = SwatchShape.Rounded;
+    }
+
+    var shapeClass = effectiveShape switch
+    {
+        SwatchShape.Rect => "rect",
+        SwatchShape.Circle => "circle",
+        _ => "rounded"
+    };
+
+    var swatchAspectRatio = Model.SwatchAspectRatio > 0 ? Model.SwatchAspectRatio : 1m;
+
+    var groupClass = $"swatch-group swatch-group-{sizeClass} swatch-shape-{shapeClass}";
+    if (anyItemHasMedia)
+    {
+        groupClass += " swatch-group-fixed";
+    }
+    if (isMediaCard)
+    {
+        groupClass += " swatch-group-cards";
+    }
+}
+
+<div class="swatches" 
+     id="swatches-@Model.Id" 
+     role="radiogroup"      
+     data-manualselect="true"
+     data-swatch-size="@sizeClass"
+     data-swatch-shape="@shapeClass"
+     data-media-card="@isMediaCard.ToString().ToLowerInvariant()"
+     aria-orientation="horizontal"  
+     attr-aria-required='(Model.IsRequired, "true")'>
+    <ul class="@groupClass" style="--swatch-aspect-ratio: @swatchAspectRatio.ToStringInvariant()">
+        @foreach (var item in items)
+        {
+            string css = null;
+            string swatchClass = "swatch";
+            string elementClass = "swatch-element";
+            string label = item.GetItemLabel();
+            bool isDark = false;
+
+            if (item.IsPreSelected)
+            {
+                swatchClass += " selected";
+            }
+
+            var hasColor = item.Color.HasValue() && item.Color != "transparent";
+            if (hasColor)
+            {
+                css = item.GetSwatchColorCss();
+                isDark = ImagingHelper.GetPerceivedBrightness(item.Color) < 200;
+                if (isDark && !isMediaCard)
+                {
+                    swatchClass += " dark";
+                }
+            }
+
+            var hasImage = item.ImageUrl.HasValue();
+            if (hasImage)
+            {
+                if (!isMediaCard)
+                {
+                    elementClass += " swatch-image";
+                }
+                css += "background-image: url('" + item.ImageUrl + "');";
+            }
+            else if (hasColor)
+            {
+                if (!isMediaCard)
+                {
+                    elementClass += " swatch-color";
+                }
+            }
+
+            if (item.IsDisabled)
+            {
+                swatchClass += " disabled";
+            }
+            else if (item.IsUnavailable)
+            {
+                swatchClass += " unavailable";
+            }
+
+            if (item.Title.HasValue())
+            {
+                label += " - " + item.Title;
+            }
+
+            var swatchPrice = item.SwatchPrice.NullEmpty() ?? item.PriceAdjustment;
+
+            // TEST
+            if (swatchPrice.IsEmpty())
+            {
+                swatchPrice = "199,99 EUR";
+            }
+            // TEST
+
+            <li class="@swatchClass" data-swatch-value="@item.Name">
+                <input type="radio"
+                       class="swatch-input"
+                       id="@(controlId)_@(item.Id)"
+                       name="@(controlId)"
+                       value="@item.Id"
+                       aria-label="@srLabelTemplate.Value.FormatInvariant(Model.Name, label)"
+                       attr-checked='(item.IsPreSelected, "checked")'
+                       attr-disabled='(item.IsDisabled, "disabled")' />
+
+                <label class="swatch-label" for="@(controlId)_@(item.Id)">
+                    <span class="swatch-content">
+                        @if (isMediaCard)
+                        {
+                            <span class="@elementClass swatch-card">
+                                <span class="swatch-media@(hasImage ? " swatch-image" : " swatch-color")" attr-style="(css.HasValue(), css)"></span>
+                                <span class="swatch-details">
+                                    <span sm-if="Model.ShowValueNameInSwatch" class="swatch-value">@item.Name</span>
+                                    <span sm-if="Model.ShowPriceInSwatch" class="swatch-price">@swatchPrice</span>
+                                </span>
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="@elementClass" attr-style="(css.HasValue(), css)">
+                                <span sm-if="!css.HasValue()" class="swatch-value">@item.Name</span>
+                            </span>
+                        }
+                    </span>
+                </label>
+            </li>
+        }
+    </ul>
+</div>

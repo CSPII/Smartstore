@@ -6,7 +6,7 @@ using Smartstore.Core.Checkout.Shipping;
 namespace Smartstore.Core.Checkout.Orders.Handlers;
 
 [CheckoutStep(30, CheckoutActionNames.ShippingMethod)]
-public class ShippingMethodHandler : ICheckoutHandler
+public class ShippingMethodHandler : CheckoutHandlerBase
 {
     private readonly IShippingService _shippingService;
     private readonly ShippingSettings _shippingSettings;
@@ -22,11 +22,21 @@ public class ShippingMethodHandler : ICheckoutHandler
         _shoppingCartSettings = shoppingCartSettings;
     }
 
-    public async Task<CheckoutResult> ProcessAsync(CheckoutContext context)
+    public override Task<CheckoutResult> RefreshAsync(CheckoutContext context)
+    {
+        if (context.Model is string shippingOption
+            && context.IsCurrentRoute(HttpMethods.Post, CheckoutActionNames.ShippingMethod))
+        {
+            return SaveShippingOption(shippingOption, context);
+        }
+
+        return base.RefreshAsync(context);
+    }
+
+    public override async Task<CheckoutResult> ProcessAsync(CheckoutContext context)
     {
         var cart = context.Cart;
-        var customer = cart.Customer;
-        var ga = customer.GenericAttributes;
+        var ga = cart.Customer.GenericAttributes;
         var options = ga.OfferedShippingOptions;
         CheckoutError[] errors = null;
         var saveAttributes = false;
@@ -43,40 +53,10 @@ public class ShippingMethodHandler : ICheckoutHandler
             return new(true, null, true);
         }
 
-        if (context.Model != null
-            && context.Model is string shippingOption
+        if (context.Model is string shippingOption
             && context.IsCurrentRoute(HttpMethods.Post, CheckoutActionNames.ShippingMethod))
         {
-            var splittedOption = shippingOption.SplitSafe("___").ToArray();
-            if (splittedOption.Length != 2)
-            {
-                return new(false);
-            }
-
-            var selectedId = splittedOption[0].ToInt();
-            var providerSystemName = splittedOption[1];
-
-            if (options.IsNullOrEmpty())
-            {
-                // Shipping option was not found in customer attributes. Load via shipping service.
-                (options, errors) = await GetShippingOptions(context, providerSystemName);
-            }
-            else
-            {
-                // Loaded cached results. Filter result by a chosen shipping rate computation method.
-                options = options.Where(x => x.ShippingRateComputationMethodSystemName.EqualsNoCase(providerSystemName)).ToList();
-            }
-
-            var selectedOption = options.FirstOrDefault(x => x.ShippingMethodId == selectedId);
-            if (selectedOption != null)
-            {
-                ga.SelectedShippingOption = selectedOption;
-                ga.PreferredShippingOption = selectedOption;
-
-                await ga.SaveChangesAsync();
-            }
-
-            return new(selectedOption != null, errors);
+            return await SaveShippingOption(shippingOption, context);
         }
 
         if (options.IsNullOrEmpty())
@@ -126,6 +106,43 @@ public class ShippingMethodHandler : ICheckoutHandler
         }
 
         return new(ga.SelectedShippingOption != null, errors, skip);
+    }
+
+    private async Task<CheckoutResult> SaveShippingOption(string shippingOption, CheckoutContext context)
+    {
+        var splittedOption = shippingOption.SplitSafe("___").ToArray();
+        if (splittedOption.Length != 2)
+        {
+            return new(false);
+        }
+
+        CheckoutError[] errors = null;
+        var selectedId = splittedOption[0].ToInt();
+        var providerSystemName = splittedOption[1];
+        var ga = context.Cart.Customer.GenericAttributes;
+        var options = ga.OfferedShippingOptions;
+
+        if (options.IsNullOrEmpty())
+        {
+            // Shipping option was not found in customer attributes. Load via shipping service.
+            (options, errors) = await GetShippingOptions(context, providerSystemName);
+        }
+        else
+        {
+            // Loaded cached results. Filter result by a chosen shipping rate computation method.
+            options = options.Where(x => x.ShippingRateComputationMethodSystemName.EqualsNoCase(providerSystemName)).ToList();
+        }
+
+        var selectedOption = options.FirstOrDefault(x => x.ShippingMethodId == selectedId);
+        if (selectedOption != null)
+        {
+            ga.SelectedShippingOption = selectedOption;
+            ga.PreferredShippingOption = selectedOption;
+
+            await ga.SaveChangesAsync();
+        }
+
+        return new(selectedOption != null, errors);
     }
 
     private async Task<(List<ShippingOption> Options, CheckoutError[] Errors)> GetShippingOptions(CheckoutContext context, string providerSystemName = null)

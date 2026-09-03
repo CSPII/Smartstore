@@ -1,6 +1,9 @@
 ﻿#nullable enable
 
+using System.ComponentModel;
+using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
+using Smartstore.Core.AI.JsonConverters;
 
 namespace Smartstore.Core.AI.Metadata;
 
@@ -16,6 +19,7 @@ public enum AIOutputType
 /// <summary>
 /// Represents the performance level of an AI model.
 /// </summary>
+[JsonConverter(typeof(JsonNumberEnumConverter<AIModelPerformanceLevel>))]
 public enum AIModelPerformanceLevel
 {
     Fast,
@@ -27,6 +31,7 @@ public enum AIModelPerformanceLevel
 /// Represents the tools available for AI response generation, allowing for a combination of multiple tools.
 /// </summary>
 [Flags]
+[JsonConverter(typeof(AIResponseToolConverter))]
 public enum AIResponseTool
 {
     None = 0,
@@ -44,21 +49,24 @@ public class AIModelEntry : ICloneable<AIModelEntry>, IEquatable<AIModelEntry>
     /// <summary>
     /// Model identifier (e.g. "gpt-5", "gemini-2.5-pro").
     /// </summary>
-    public string Id { get; set; } = default!;
+    public required string Id { get; set; }
 
     /// <summary>
     /// Model name (e.g. "GPT-5", "Gemini 2.5 Pro").
     /// </summary>
+    [DefaultValue("")]
     public string? Name { get; set; }
 
     /// <summary>
     /// Model type: "text" or "image".
     /// </summary>
+    [JsonConverter(typeof(AIOutputTypeConverter))]
     public AIOutputType Type { get; set; }
 
     /// <summary>
     /// Human-readable description of the model.
     /// </summary>
+    [DefaultValue("")]
     public string? Description { get; set; }
 
     /// <summary>
@@ -79,12 +87,23 @@ public class AIModelEntry : ICloneable<AIModelEntry>, IEquatable<AIModelEntry>
     /// <summary>
     /// Suggested replacement model ID for deprecated models.
     /// </summary>
+    [DefaultValue("")]
     public string? Alias { get; set; }
 
     /// <summary>
     /// The performance level of the model.
     /// </summary>
+    [DefaultValue(AIModelPerformanceLevel.Balanced)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    [JsonConverter(typeof(JsonNumberEnumConverter<AIModelPerformanceLevel>))]
     public AIModelPerformanceLevel Level { get; set; } = AIModelPerformanceLevel.Balanced;
+
+    /// <summary>
+    /// Gets or sets the adjustable reasoning effort options for this model.
+    /// If <c>null</c>, the model does not support explicit reasoning effort control.
+    /// </summary>
+    [DefaultValue("[]")]
+    public AIModelThinkOptions? Think { get; set; }
 
     /// <summary>
     /// Gets or sets the tools supported by this model.
@@ -95,12 +114,15 @@ public class AIModelEntry : ICloneable<AIModelEntry>, IEquatable<AIModelEntry>
     /// <summary>
     /// Indicates whether the model supports streaming responses.
     /// </summary>
+    [DefaultValue(true)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public bool Stream { get; set; } = true;
 
     /// <summary>
     /// Gets the output capabilities of the AI image generation process.
     /// </summary>
     [JsonPropertyName("output")]
+    [DefaultValue("[]")]
     public AIImageOutput? ImageOutputCapabilities { get; set; }
 
     /// <summary>
@@ -124,6 +146,7 @@ public class AIModelEntry : ICloneable<AIModelEntry>, IEquatable<AIModelEntry>
     /// <summary>
     /// User-defined custom model (not provided by metadata.json).
     /// </summary>
+    [IgnoreDataMember]
     public bool IsCustom { get; set; }
 
     /// <summary>

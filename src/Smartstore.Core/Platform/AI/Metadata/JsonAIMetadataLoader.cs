@@ -1,11 +1,9 @@
 ﻿#nullable enable
 
-using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Primitives;
 using Smartstore.Caching;
 using Smartstore.IO;
-using Smartstore.Json;
 
 namespace Smartstore.Core.AI.Metadata;
 
@@ -13,14 +11,11 @@ public class JsonAIMetadataLoader : IAIMetadataLoader
 {
     private readonly IMemoryCache _cache;
     private readonly IApplicationContext _appContext;
-    private readonly JsonSerializerOptions _jsonOptions;
 
     public JsonAIMetadataLoader(IMemoryCache cache, IApplicationContext appContext)
     {
         _cache = cache;
         _appContext = appContext;
-
-        _jsonOptions = SmartJsonOptions.CamelCased;
     }
 
     protected static string BuildCacheKey(string moduleSystemName)
@@ -50,12 +45,6 @@ public class JsonAIMetadataLoader : IAIMetadataLoader
         });
 
         return (AIMetadata)result!.Value;
-    }
-
-    public virtual Task<AIMetadata?> PostProcessAsync(AIMetadata localMetadata)
-    {
-        localMetadata.PostProcessed = true;
-        return Task.FromResult<AIMetadata?>(null);
     }
 
     public void ReplaceMetadata(string moduleSystemName, AIMetadata metadata)
@@ -90,10 +79,16 @@ public class JsonAIMetadataLoader : IAIMetadataLoader
         return (metadata, changeToken);
     }
 
+    public virtual Task<AIMetadata?> PostProcessAsync(AIMetadata localMetadata, CancellationToken cancelToken = default)
+    {
+        localMetadata.PostProcessed = true;
+        return Task.FromResult<AIMetadata?>(null);
+    }
+
     protected virtual AIMetadata? Deserialize(IFile file)
     {
         using var stream = file.OpenRead();
-        return JsonSerializer.Deserialize<AIMetadata>(stream, _jsonOptions);
+        return AIMetadata.FromJson(stream);
     }
 
     public void Invalidate(string moduleSystemName)

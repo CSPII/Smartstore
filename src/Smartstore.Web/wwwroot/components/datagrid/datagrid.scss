@@ -118,6 +118,7 @@ input.form-control-plaintext {
     flex-grow: 1;
     overflow: auto;
     background-color: #fff;
+    scrollbar-width: thin;
 }
 
 .dg-table {
@@ -448,7 +449,7 @@ input.form-control-plaintext {
     .dg-col-pinned {
         position: sticky !important;
         overflow-x: visible !important;
-        z-index: 20;
+        z-index: 9;
 
         &.dg-th {
             z-index: 10;

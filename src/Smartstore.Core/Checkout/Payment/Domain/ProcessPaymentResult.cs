@@ -57,4 +57,13 @@ public partial class ProcessPaymentResult : PaymentResult
     /// Gets or sets a payment status after processing.
     /// </summary>
     public PaymentStatus NewPaymentStatus { get; set; } = PaymentStatus.Pending;
+
+    /// <summary>
+    /// Gets or sets a unique hash of a stable payment-provider reference used to prevent multiple orders
+    /// from being created for the same external payment transaction or checkout.
+    /// It is intended for use when an order is missing and the payment provider recovers it 
+    /// using the customer's cart data when a webhook message is received.
+    /// 0 (default) to not apply a hash code.
+    /// </summary>
+    public long PaymentReferenceHashCode { get; set; }
 }

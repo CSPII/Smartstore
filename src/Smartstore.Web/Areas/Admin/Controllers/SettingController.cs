@@ -223,9 +223,6 @@ public partial class SettingController : AdminController
 
         #endregion
 
-        // Does not contain any store specific settings.
-        await Services.SettingFactory.SaveSettingsAsync(securitySettings);
-
         NotifySuccess(T("Admin.Configuration.Updated"));
         return RedirectToAction(nameof(GeneralCommon));
     }

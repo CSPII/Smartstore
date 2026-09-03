@@ -1,6 +1,7 @@
 ﻿#nullable enable
 
 using Microsoft.AspNetCore.Mvc;
+using Smartstore.Core.Widgets;
 
 namespace Smartstore.Core.Checkout.Orders;
 
@@ -62,6 +63,13 @@ public partial class CheckoutResult
     /// Always <c>null</c> for standard checkout (default).
     /// </summary>
     public string? ViewPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets widgets to be rendered on the current checkout page.
+    /// Only applicable for AJAX requests.
+    /// </summary>
+    public IDictionary<CheckoutPartial, Widget> Widgets { get; } =
+        new Dictionary<CheckoutPartial, Widget>();
 }
 
 public class CheckoutError(string propertyName, string errorMessage)

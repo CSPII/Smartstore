@@ -11,8 +11,6 @@ namespace Smartstore.Core.Checkout.Orders;
 /// </summary>
 public partial class CheckoutState : ObservableObject
 {
-    public static string CheckoutStateSessionKey => ".Smart.CheckoutState";
-
     /// <summary>
     /// Gets the object name of the currently selected payment method info.
     /// The object is stored in HttpContext.Session using this name.
@@ -47,33 +45,6 @@ public partial class CheckoutState : ObservableObject
     /// Set on the payment selection page, if not skipped by a payment module.
     /// </summary>
     public bool IsPaymentSelectionSkipped
-    {
-        get => GetProperty<bool>();
-        set => SetProperty(value);
-    }
-
-    /// <summary>
-    /// Gets or sets the customer comment entered on checkout confirmation page.
-    /// </summary>
-    public string CustomerComment
-    {
-        get => GetProperty<string>();
-        set => SetProperty(value);
-    }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the customer wants to subscribe to the newsletter.
-    /// </summary>
-    public bool SubscribeToNewsletter
-    {
-        get => GetProperty<bool>();
-        set => SetProperty(value);
-    }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the customer accepts third-party email handover.
-    /// </summary>
-    public bool AcceptThirdPartyEmailHandOver
     {
         get => GetProperty<bool>();
         set => SetProperty(value);

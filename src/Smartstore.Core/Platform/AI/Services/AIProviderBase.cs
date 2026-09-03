@@ -5,13 +5,14 @@ using Smartstore.Core.Localization;
 using Smartstore.IO;
 using Smartstore.Threading;
 using Smartstore.Utilities;
+using System.Text.Json;
 
 namespace Smartstore.Core.AI;
 
 /// <summary>
 /// A base class to implement <see cref="IAIProvider"/>.
 /// </summary>
-public abstract class AIProviderBase : IAIProvider
+public abstract class AIProviderBase : Disposable, IAIProvider
 {
     /// <summary>
     /// The character used to split streamed AI responses.
@@ -35,13 +36,38 @@ public abstract class AIProviderBase : IAIProvider
 
     public AIProviderBase(IAIMetadataLoader metadataLoader, string moduleSystemName)
     {
-        _metadataLoader = metadataLoader;
+        Guard.NotEmpty(moduleSystemName);
+        
+        _metadataLoader = Guard.NotNull(metadataLoader);
         _moduleSystemName = moduleSystemName;
     }
 
     public Localizer T { get; set; } = NullLocalizer.Instance;
 
     public abstract bool IsActive();
+
+    public async Task WaitForMetadataAsync(TimeSpan? timeout = null, CancellationToken cancelToken = default)
+    {
+        var metadata = _metadata ?? _metadataLoader.LoadMetadata(_moduleSystemName);
+        if (metadata == null || metadata.PostProcessed)
+        {
+            return;
+        }
+
+        timeout ??= TimeSpan.FromSeconds(5);
+        var startedOn = DateTime.UtcNow;
+
+        do
+        {
+            await Task.Delay(50, cancelToken);
+
+            if (metadata.PostProcessed || _metadataLoader.LoadMetadata(_moduleSystemName)?.PostProcessed == true)
+            {
+                return;
+            }
+        }
+        while (!cancelToken.IsCancellationRequested && DateTime.UtcNow - startedOn < timeout.Value);
+    }
 
     public AIMetadata Metadata
     {
@@ -55,7 +81,7 @@ public abstract class AIProviderBase : IAIProvider
                 if (!_metadata.PostProcessed)
                 {
                     // Post-process metadata asynchronously (fire-and-forget).
-                    var lockHandle = AsyncLock.Keyed("aimetadatalock:" + _metadata.ProviderId);
+                    var lockHandle = AsyncLock.Keyed(BuildMetadataLockKey(_metadata));
                     // Reload from cache
                     var metadata = _metadataLoader.LoadMetadata(_moduleSystemName);
                     if (!metadata.PostProcessed)
@@ -80,34 +106,50 @@ public abstract class AIProviderBase : IAIProvider
 
         if (task.IsCompleted)
         {
-            // If already completed, update metadata immediately.
-            if (task.Status == TaskStatus.RanToCompletion && task.Result != null)
+            try
             {
-                _metadata = task.Result;
-            }
+                // If already completed, update metadata immediately.
+                if (task.Status == TaskStatus.RanToCompletion && task.Result != null)
+                {
+                    _metadata = task.Result;
+                }
 
-            _metadata.PostProcessed = true;
-            lockHandle.Release();
+                _metadata.PostProcessed = true;
+            }
+            finally
+            {
+                lockHandle.Release();
+            }
         }
         else
         {
             // Update cached metadata when post-processing is done.
             task.ContinueWith(t =>
             {
-                if (t.Result != null)
+                try
                 {
-                    t.Result.PostProcessed = true;
-                    _metadataLoader.ReplaceMetadata(_moduleSystemName, t.Result);
+                    var result = t.Result;
+                    if (result != null)
+                    {
+                        result.PostProcessed = true;
+                        _metadata = result;
+                        _metadataLoader.ReplaceMetadata(_moduleSystemName, result);
+                    }
+                    else
+                    {
+                        _metadata.PostProcessed = true;
+                    }
                 }
-                else
+                finally
                 {
-                    _metadata.PostProcessed = true;
+                    lockHandle.Release();
                 }
-
-                lockHandle.Release();
             });
         }
     }
+
+    private static string BuildMetadataLockKey(AIMetadata metadata)
+        => "aimetadatalock:" + metadata.ProviderId;
 
     public virtual AIModelCollection GetModels(AIChatTopic topic)
     {
@@ -150,6 +192,70 @@ public abstract class AIProviderBase : IAIProvider
     protected virtual Task<string> TextChatAsync(AIChat chat, CancellationToken cancelToken = default)
         => throw new NotImplementedException();
 
+    public virtual async Task<T> GetTypedResponseAsync<T>(
+        AIChat chat,
+        AIResponseSchema schema,
+        JsonSerializerOptions jsonOptions = null,
+        CancellationToken cancelToken = default)
+        where T : class
+    {
+        Guard.NotNull(schema);
+
+        if (chat == null || !chat.HasMessages())
+        {
+            return null;
+        }
+
+        if (chat.Topic == AIChatTopic.Image)
+        {
+            throw new NotSupportedException($"Typed response is not supported for {nameof(AIChatTopic.Image)} chats.");
+        }
+
+        var json = await GetTypedResponseCoreAsync(chat, schema, cancelToken);
+        if (json.IsEmpty())
+        {
+            return default;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, jsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            throw new AIException($"The AI response could not be deserialized to {typeof(T).Name}.", ex, null);
+        }
+    }
+
+    protected virtual string GetDefaultTypedResponsePrompt(AIResponseSchema schema)
+    {
+        return @$"Return only valid JSON for the requested typed response.
+            Do not include markdown, comments, explanations, or surrounding text.
+            The JSON object must conform to this schema:
+            {schema.SchemaJson}
+            ";
+    }
+
+    /// <summary>
+    /// Provider-specific implementation hook for requesting a typed AI response.
+    /// Implementers override this method to configure the provider for structured JSON output (e.g., attach a JSON schema,
+    /// set response format options, or add system instructions) and return the raw JSON returned by the model.
+    /// </summary>
+    /// <param name="chat">The AI chat containing the messages and topic.</param>
+    /// <param name="schema">The response schema the AI must adhere to.</param>
+    /// <returns>The raw JSON response from the AI, or an empty string if the provider returned no content.</returns>
+    /// <remarks>
+    /// The default implementation forwards the chat to <see cref="ChatAsync"/> and returns its string result as JSON.
+    /// Override this method when the provider requires provider-specific schema handling. For example, the ChatGPT provider
+    /// sets <c>ResponseTextOptions.TextFormat</c> to <c>CreateJsonSchemaFormat</c> and validates that the finish reason
+    /// is <c>stop</c> before returning the model's JSON output.
+    /// </remarks>
+    protected virtual Task<string> GetTypedResponseCoreAsync(
+        AIChat chat,
+        AIResponseSchema schema,
+        CancellationToken cancelToken = default)
+        => ChatAsync(chat, cancelToken);
+
     /// <summary>
     /// Starts or continues a text-to-image AI conversation, including source image(s), to create an image.
     /// </summary>
@@ -174,6 +280,26 @@ public abstract class AIProviderBase : IAIProvider
         => throw new NotSupportedException();
 
     #region Utilities
+
+    /// <summary>
+    /// Returns the effective tools for the given chat by intersecting the requested tools
+    /// with what the resolved model actually supports.
+    /// </summary>
+    protected AIResponseTool GetEffectiveTools(AIChat chat)
+    {
+        var requested = chat.Tools;
+        if (requested == AIResponseTool.None)
+        {
+            return AIResponseTool.None;
+        }
+
+        var modelEntry = Metadata?.GetModelById(chat.ModelName);
+
+        // Intersect: honour only tools the model actually declares support for.
+        return modelEntry != null
+            ? requested & modelEntry.Tools
+            : AIResponseTool.None;
+    }
 
     protected static float? ClampTemperature(float temperature)
     {

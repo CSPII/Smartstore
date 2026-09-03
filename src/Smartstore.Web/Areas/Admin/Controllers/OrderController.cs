@@ -1545,6 +1545,8 @@ public class OrderController : AdminController
             return NotFound();
         }
 
+        ViewBag.PrimaryCurrencyDecimals = _primaryCurrency.RoundNumDecimals;
+
         return View(result.Model);
     }
 
@@ -1552,13 +1554,11 @@ public class OrderController : AdminController
     [Permission(Permissions.Order.EditItem)]
     public async Task<IActionResult> AddProductToOrder(AddOrderProductModel model, ProductVariantQuery query)
     {
-        var result = await model.MapAsync(query);
+        var result = await model.MapAsync(query, false);
         var order = result.Data.Order;
         var product = result.Data.Product;
         var selection = result.Data.Selection;
         var warnings = new List<string>();
-
-        model = result.Model;
 
         if (product == null || order == null)
         {
@@ -1579,9 +1579,11 @@ public class OrderController : AdminController
 
         _shoppingCartValidator.Value.ValidateGiftCardInfo(product, selection, warnings);
 
-        if (warnings.Count > 0)
+        if (warnings.Count > 0 || !ModelState.IsValid)
         {
             ViewBag.Warnings = warnings;
+            ViewBag.PrimaryCurrencyDecimals = _primaryCurrency.RoundNumDecimals;
+
             return View(model);
         }
 
@@ -2122,6 +2124,7 @@ public class OrderController : AdminController
         ViewBag.DisplayTaxRates = _taxSettings.DisplayTaxRates;
         ViewBag.IsSingleStoreMode = Services.StoreContext.IsSingleStoreMode();
         ViewBag.PrimaryStoreCurrencyCode = _primaryCurrency.CurrencyCode;
+        ViewBag.PrimaryCurrencyDecimals = _primaryCurrency.RoundNumDecimals;
     }
 
     private async Task<List<OrderModel.OrderItemModel>> CreateOrderItemsModels(Order order)

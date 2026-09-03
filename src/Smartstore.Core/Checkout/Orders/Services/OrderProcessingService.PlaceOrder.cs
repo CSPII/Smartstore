@@ -12,6 +12,7 @@ using Smartstore.Core.Localization;
 using Smartstore.Core.Logging;
 using Smartstore.Core.Stores;
 using Smartstore.Utilities;
+using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace Smartstore.Core.Checkout.Orders;
 
@@ -19,25 +20,26 @@ public partial class OrderProcessingService : IOrderProcessingService
 {
     public virtual async Task<OrderPlacementResult> PlaceOrderAsync(
         ProcessPaymentRequest paymentRequest,
-        Dictionary<string, string> extraData,
         CancellationToken cancelToken = default)
     {
         Guard.NotNull(paymentRequest);
-
-        extraData ??= [];
 
         if (paymentRequest.OrderGuid == Guid.Empty)
         {
             paymentRequest.OrderGuid = Guid.NewGuid();
         }
 
+        var customer = await _db.Customers
+            .IncludeCustomerRoles()
+            .FindByIdAsync(paymentRequest.CustomerId, true, cancelToken);
+
         var ctx = new PlaceOrderContext
         {
             InitialOrder = await _db.Orders.FindByIdAsync(paymentRequest.InitialOrderId, true, cancelToken),
-            Customer = await _db.Customers
-                .IncludeCustomerRoles()
-                .FindByIdAsync(paymentRequest.CustomerId, true, cancelToken),
-            ExtraData = extraData,
+            Customer = customer,
+            CheckoutOrderData = paymentRequest.IsRecurringPayment
+                ? []
+                : customer?.GenericAttributes.CheckoutOrderData ?? [],
             PaymentRequest = paymentRequest
         };
 
@@ -127,12 +129,91 @@ public partial class OrderProcessingService : IOrderProcessingService
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Order processing failed");
             await transaction.RollbackAsync(cancelToken);
             ex.ReThrow();
         }
 
         return ctx.Result;
+    }
+
+    public virtual async Task<OrderPlacementResult> RecoverOrderAsync(OrderRecoveryData data, CancellationToken cancelToken = default)
+    {
+        Guard.NotNull(data);
+        Guard.IsPositive(data.StoreId);
+
+        var customer = await _db.Customers
+            .IncludeCustomerRoles()
+            .FindByIdAsync(data.CustomerId, true, cancelToken);
+        if (customer == null)
+        {
+            return CreateFailure(T("Customer.DoesNotExist"));
+        }
+
+        // Check if the current cart matches the cart that was used to pay it.
+        var cart = await _shoppingCartService.GetCartAsync(customer, ShoppingCartType.ShoppingCart, data.StoreId);
+        if (!cart.HasItems)
+        {
+            return CreateFailure(T("ShoppingCart.CartIsEmpty"));
+        }
+
+        // INFO: Order recovery deliberately uses the customer's current persisted addresses and
+        // selected shipping option. These values are not part of the cart hash because changing
+        // them should not prevent recovery of an already paid order.
+        // This means that a restored order may have different addresses and a different shipping
+        // method than an order created normally during checkout.
+
+        var currentCartHash = cart.GetHashCode();
+        if (data.CartHash == 0 || currentCartHash != data.CartHash)
+        {
+            return CreateFailure(T("Admin.Configuration.Payment.Methods.NoMatchingCartHash", currentCartHash, data.CartHash));
+        }
+
+        if (customer.Id != _workContext.CurrentCustomer.Id)
+        {
+            // Always use the customer who paid for the order. Otherwise, the system may calculate a different cart total.
+            _workContext.CurrentCustomer = customer;
+            await _workContext.InitializeAsync();
+        }
+
+        // Check if the current cart total matches the total that was paid.
+        var total = await _orderCalculationService.GetShoppingCartTotalAsync(cart);
+        if (total.Total == null)
+        {
+            return CreateFailure(T("Order.CannotCalculateOrderTotal"));
+        }
+
+        var roundedTotal = _roundingHelper.Round(total.Total.Value);
+        if (data.PaidAmount == 0 || roundedTotal != data.PaidAmount)
+        {
+            return CreateFailure(T("Admin.Configuration.Payment.Methods.NoMatchingCartTotal", roundedTotal, data.PaidAmount));
+        }
+
+        try
+        {
+            var paymentRequest = new ProcessPaymentRequest
+            {
+                StoreId = data.StoreId,
+                CustomerId = data.CustomerId,
+                PaymentMethodSystemName = data.PaymentMethodSystemName,
+                OrderGuid = data.OrderGuid,
+                IsOrderRecovery = true
+            };
+
+            var result = await PlaceOrderAsync(paymentRequest, cancelToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            var isDuplicatePaymentReference = await IsDuplicatePaymentReferenceAsync(ex);
+            var msg = T(isDuplicatePaymentReference ? "Order.AlreadyExists" : "Order.PlaceOrderError", customer.Id);
+
+            Logger.Log(isDuplicatePaymentReference ? MsLogLevel.Warning : MsLogLevel.Error, ex, msg);
+
+            return CreateFailure(msg);
+        }
+
+        static OrderPlacementResult CreateFailure(string error)
+            => new() { Errors = [error] };
     }
 
     public virtual Task<(IList<string> Warnings, ShoppingCart Cart)> ValidateOrderPlacementAsync(
@@ -485,14 +566,14 @@ public partial class OrderProcessingService : IOrderProcessingService
             order.CustomerLanguageId = _workContext.WorkingLanguage.Id;
         }
 
-        // Apply extra data.
-        if (ctx.ExtraData.TryGetValue(CheckoutWorkflow.CustomerCommentKey, out var customerComment))
+        // Apply checkout data.
+        if (ctx.CheckoutOrderData.TryGetValue(CheckoutWorkflow.CustomerCommentKey, out var customerComment))
         {
             order.CustomerOrderComment = customerComment;
         }
 
         if (_shoppingCartSettings.ThirdPartyEmailHandOver != CheckoutThirdPartyEmailHandOver.None
-            && ctx.ExtraData.TryGetValue(CheckoutWorkflow.AcceptThirdPartyEmailHandOverKey, out var acceptEmailHandOver))
+            && ctx.CheckoutOrderData.TryGetValue(CheckoutWorkflow.AcceptThirdPartyEmailHandOverKey, out var acceptEmailHandOver))
         {
             order.AcceptThirdPartyEmailHandOver = acceptEmailHandOver.ToBool();
         }
@@ -718,6 +799,7 @@ public partial class OrderProcessingService : IOrderProcessingService
         order.PurchaseOrderNumber = pr.PurchaseOrderNumber;
         order.PaymentStatus = result.NewPaymentStatus;
         order.PaidDateUtc = result.NewPaymentStatus == PaymentStatus.Paid ? ctx.Now : null;
+        order.PaymentReferenceHashCode = result.PaymentReferenceHashCode == 0 ? null : result.PaymentReferenceHashCode;
     }
 
     private async Task AddOrderItems(PlaceOrderContext ctx)
@@ -1028,7 +1110,7 @@ public partial class OrderProcessingService : IOrderProcessingService
 
         if (!pr.IsRecurringPayment && !pr.IsMultiOrder)
         {
-            ctx.Customer.ResetCheckoutData(pr.StoreId, true, true, true, true, true, true);
+            ctx.Customer.ResetCheckoutData(pr.StoreId, CheckoutDataResetFlags.All);
             await _shoppingCartService.DeleteCartAsync(ctx.Cart, false);
         }
 
@@ -1055,7 +1137,7 @@ public partial class OrderProcessingService : IOrderProcessingService
 
         // Newsletter subscription.
         if (_shoppingCartSettings.NewsletterSubscription != CheckoutNewsletterSubscription.None
-            && ctx.ExtraData.TryGetValue(CheckoutWorkflow.SubscribeToNewsletterKey, out var addSubscription))
+            && ctx.CheckoutOrderData.TryGetValue(CheckoutWorkflow.SubscribeToNewsletterKey, out var addSubscription))
         {
             var email = ctx.Customer.Email ?? ctx.Customer.Addresses?.FirstOrDefault()?.Email;
 
@@ -1089,7 +1171,7 @@ public partial class OrderProcessingService : IOrderProcessingService
         public Order Order { get; } = new();
         public Order InitialOrder { get; init; }
         public Customer Customer { get; init; }
-        public Dictionary<string, string> ExtraData { get; init; }
+        public Dictionary<string, string> CheckoutOrderData { get; init; }
         public ProcessPaymentRequest PaymentRequest { get; init; }
         public ShoppingCart Cart { get; set; }
         public ProductBatchContext BatchContext { get; set; }

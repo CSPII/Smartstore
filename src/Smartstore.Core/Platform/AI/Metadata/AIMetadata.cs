@@ -1,7 +1,11 @@
 ﻿#nullable enable
 
+using System.ComponentModel;
 using System.Runtime.Serialization;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using Smartstore.Core.AI.JsonConverters;
+using Smartstore.Json;
 
 namespace Smartstore.Core.AI.Metadata;
 
@@ -15,16 +19,17 @@ public class AIMetadata
     /// <summary>
     /// Arbitrary config version or timestamp string.
     /// </summary>
-    public string Version { get; set; } = default!;
+    public required string Version { get; set; } = default!;
 
     /// <summary>
     /// Internal provider ID (e.g. "openai").
     /// </summary>
-    public string ProviderId { get; set; } = default!;
+    public required string ProviderId { get; set; } = default!;
 
     /// <summary>
     /// Human-readable provider name.
     /// </summary>
+    [DefaultValue("")]
     public string? ProviderName { get; set; }
 
     /// <summary>
@@ -36,7 +41,7 @@ public class AIMetadata
     /// <summary>
     /// List of LLM models available under this provider.
     /// </summary>
-    public AIModelCollection Models { get; set; } = default!;
+    public AIModelCollection Models { get; set; } = [];
 
     /// <summary>
     /// A flag indicating whether this instance is a post-processed clone.
@@ -46,26 +51,77 @@ public class AIMetadata
 
     #endregion
 
+    #region Serialization
+
+    /// <summary>
+    /// Serializes this instance to a JSON string.
+    /// </summary>
+    public string ToJson()
+        => JsonSerializer.Serialize(this, SmartJsonOptions.CamelCasedIgnoreDefaults);
+
+    /// <summary>
+    /// Serializes this instance to a JSON stream.
+    /// </summary>
+    /// <param name="utf8Json">The stream to which the JSON will be written.</param>
+    public void ToJson(Stream utf8Json)
+        => JsonSerializer.Serialize(utf8Json, this, SmartJsonOptions.CamelCasedIgnoreDefaults);
+
+    /// <summary>
+    /// Serializes this instance to a JSON stream asynchronously.
+    /// </summary>
+    /// <param name="utf8Json">The stream to which the JSON will be written.</param>
+    public Task ToJsonAsync(Stream utf8Json, CancellationToken cancelToken = default)
+        => JsonSerializer.SerializeAsync(utf8Json, this, SmartJsonOptions.CamelCasedIgnoreDefaults, cancelToken);
+
+    /// <summary>
+    /// Deserializes an AIMetadata instance from a JSON string.
+    /// </summary>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static AIMetadata? FromJson(string json)
+        => JsonSerializer.Deserialize<AIMetadata>(json, SmartJsonOptions.CamelCasedIgnoreDefaults);
+
+    /// <summary>
+    /// Deserializes an AIMetadata instance from a JSON stream.
+    /// </summary>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static AIMetadata? FromJson(Stream utf8Json)
+        => JsonSerializer.Deserialize<AIMetadata>(utf8Json, SmartJsonOptions.CamelCasedIgnoreDefaults);
+
+    /// <summary>
+    /// Deserializes an AIMetadata instance from a JSON stream asynchronously.
+    /// </summary>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static ValueTask<AIMetadata?> FromJsonAsync(Stream utf8Json, CancellationToken cancelToken = default)
+        => JsonSerializer.DeserializeAsync<AIMetadata>(utf8Json, SmartJsonOptions.CamelCasedIgnoreDefaults, cancelToken);
+
+    #endregion
+
     #region Supports...
 
     public bool Supports(AIProviderFeatures feature)
         => Capabilities.HasFlag(feature);
 
+    [IgnoreDataMember]
     public bool SupportsTextGeneration
         => Supports(AIProviderFeatures.TextGeneration);
 
+    [IgnoreDataMember]
     public bool SupportsTranslation
         => Supports(AIProviderFeatures.Translation);
 
+    [IgnoreDataMember]
     public bool SupportsImageGeneration
         => Supports(AIProviderFeatures.ImageGeneration);
 
+    [IgnoreDataMember]
     public bool SupportsImageAnalysis
         => Supports(AIProviderFeatures.ImageAnalysis);
 
-    public bool SuportsThemeVarGeneration
+    [IgnoreDataMember]
+    public bool SupportsThemeVarGeneration
         => Supports(AIProviderFeatures.ThemeVarGeneration);
 
+    [IgnoreDataMember]
     public bool SupportsAssistance
         => Supports(AIProviderFeatures.Assistance);
 
@@ -185,7 +241,7 @@ public class AIMetadata
     {
         if (preferredModelIds.IsNullOrEmpty())
         {
-            return [.. GetModels(outputType)];
+            return new AIModelCollection(GetModels(outputType));
         }
 
         var mergedModels = new AIModelCollection();

@@ -309,6 +309,7 @@ public partial class XmlSitemapGenerator : AsyncDbSaveHook<BaseEntity>, IXmlSite
             var prevCustomer = _services.WorkContext.CurrentCustomer;
             // No need to vary xml sitemap by customer roles: it's relevant to crawlers only.
             _services.WorkContext.CurrentCustomer = (await _customerService.GetCustomerBySystemNameAsync(SystemCustomerNames.Bot, false)) ?? prevCustomer;
+            await _services.WorkContext.InitializeAsync();
 
             try
             {
@@ -336,7 +337,10 @@ public partial class XmlSitemapGenerator : AsyncDbSaveHook<BaseEntity>, IXmlSite
 
                         segment++;
                         numProcessed = Math.Min(segment * MaximumSiteMapNodeCount, total);
-                        ctx.ProgressCallback?.Invoke(numProcessed, total, $"{numProcessed:N0} / {total:N0}");
+                        if (ctx.ProgressCallback != null)
+                        {
+                            await ctx.ProgressCallback(numProcessed, total, $"{numProcessed:N0} / {total:N0}");
+                        }
 
                         var slugs = await GetUrlRecordCollectionsForBatchAsync([.. batch.Select(x => x.Entry)], languageIds);
 
@@ -386,7 +390,11 @@ public partial class XmlSitemapGenerator : AsyncDbSaveHook<BaseEntity>, IXmlSite
                     // Process custom nodes
                     if (!ctx.CancellationToken.IsCancellationRequested)
                     {
-                        ctx.ProgressCallback?.Invoke(numProcessed, total, $"{numProcessed:N0} / {total:N0}... Processing custom nodes");
+                        if (ctx.ProgressCallback != null)
+                        {
+                            await ctx.ProgressCallback(numProcessed, total, $"{numProcessed:N0} / {total:N0}... Processing custom nodes");
+                        }
+
                         await ProcessCustomNodesAsync(ctx, sitemaps);
 
                         foreach (var data in languageData.Values)
@@ -410,7 +418,11 @@ public partial class XmlSitemapGenerator : AsyncDbSaveHook<BaseEntity>, IXmlSite
                 }
 
                 ctx.CancellationToken.ThrowIfCancellationRequested();
-                ctx.ProgressCallback?.Invoke(totalSegments, totalSegments, "Finalizing...");
+
+                if (ctx.ProgressCallback != null)
+                {
+                    await ctx.ProgressCallback(totalSegments, totalSegments, "Finalizing...");
+                }
 
                 foreach (var data in languageData.Values)
                 {
@@ -429,6 +441,8 @@ public partial class XmlSitemapGenerator : AsyncDbSaveHook<BaseEntity>, IXmlSite
             {
                 // Undo impersonation
                 _services.WorkContext.CurrentCustomer = prevCustomer;
+                await _services.WorkContext.InitializeAsync();
+
                 sitemaps.Clear();
 
                 foreach (var data in languageData.Values)

@@ -306,6 +306,8 @@ public class IdentityController : PublicController
 
             if (succeeded)
             {
+                await AssignCustomerRolesAsync(customer);
+
                 // Update customer properties.
                 await MapRegisterModelToCustomerAsync(customer, model);
 
@@ -347,7 +349,8 @@ public class IdentityController : PublicController
             }
         }
 
-        ViewBag.RegisterResult = resultText.HasValue() ? resultText + " " + message : message;
+        ViewBag.RegisterResult = resultText.Grow(message.Truncate(200).HtmlEncode());
+
         return View();
     }
 
@@ -485,10 +488,26 @@ public class IdentityController : PublicController
 
         if (ModelState.IsValid)
         {
-            var passwordResult = await _userManager.ChangePasswordAsync(customer, model.OldPassword, model.NewPassword);
-            if (passwordResult.Succeeded)
+            IdentityResult passwordResult;
+            if (await _userManager.CheckPasswordAsync(customer, model.OldPassword))
             {
-                model.Result = T("Account.ChangePassword.Success");
+                var token = await _userManager.GeneratePasswordResetTokenAsync(customer);
+                var oldPasswordFormat = customer.PasswordFormat;
+                customer.PasswordFormat = _customerSettings.DefaultPasswordFormat;
+
+                passwordResult = await _userManager.ResetPasswordAsync(customer, token, model.NewPassword);
+                if (passwordResult.Succeeded)
+                {
+                    model.Result = T("Account.ChangePassword.Success");
+                }
+                else
+                {
+                    customer.PasswordFormat = oldPasswordFormat;
+                }
+            }
+            else
+            {
+                passwordResult = await _userManager.ChangePasswordAsync(customer, model.OldPassword, model.NewPassword);
             }
 
             AddModelStateErrors(passwordResult);
@@ -563,6 +582,9 @@ public class IdentityController : PublicController
 
         if (ModelState.IsValid)
         {
+            var oldPasswordFormat = customer.PasswordFormat;
+            customer.PasswordFormat = _customerSettings.DefaultPasswordFormat;
+
             var identityResult = await _userManager.ResetPasswordAsync(customer, model.Token, model.NewPassword);
             if (identityResult.Succeeded)
             {
@@ -576,6 +598,7 @@ public class IdentityController : PublicController
             }
             else
             {
+                customer.PasswordFormat = oldPasswordFormat;
                 identityResult.Errors.Each(x => NotifyError(x.Description));
 
                 return RedirectToAction(nameof(PasswordRecoveryConfirm), new { token = model.Token, email = model.Email });
@@ -591,7 +614,7 @@ public class IdentityController : PublicController
 
     [HttpGet]
     [AllowAnonymous, DisallowRobot]
-    public IActionResult ExternalLogin(string provider, string returnUrl = null)
+    public IActionResult ExternalLogin(string provider)
     {
         var redirectUrl = Url.Action(nameof(ExternalLoginCallback), "Identity");
         var properties = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
@@ -607,7 +630,7 @@ public class IdentityController : PublicController
     {
         if (remoteError != null)
         {
-            NotifyError(remoteError);
+            NotifyError(remoteError.Truncate(200).HtmlEncode());
             return RedirectToAction(nameof(Login));
         }
 
@@ -654,6 +677,8 @@ public class IdentityController : PublicController
                     identityResult = await _userManager.AddLoginAsync(customer, info);
                     if (identityResult.Succeeded)
                     {
+                        await AssignCustomerRolesAsync(customer);
+
                         var result = await FinalizeCustomerRegistrationAsync(customer, returnUrl);
                         await FinalizeLoginAsync(Services.WorkContext.CurrentCustomer, customer, logActivity: true);
 
@@ -680,7 +705,7 @@ public class IdentityController : PublicController
     {
         if (provider.HasValue() || errorMessage.HasValue())
         {
-            Logger.Error($"Error from external provider {provider}: {errorMessage}");
+            Logger.Error($"Error from external provider {provider.Truncate(200).HtmlEncode()}: {errorMessage.Truncate(200).HtmlEncode()}");
         }
 
         NotifyError(T("ExternalAuthentication.ConfigError"));
@@ -736,8 +761,6 @@ public class IdentityController : PublicController
     {
         // Remove ClientIdent: no other "same-building" guest should be identified by this ident.
         customer.ClientIdent = null;
-
-        await AssignCustomerRolesAsync(customer);
 
         // Add reward points for customer registration (if enabled).
         if (_rewardPointsSettings.Enabled && _rewardPointsSettings.PointsForRegistration > 0)
@@ -802,6 +825,7 @@ public class IdentityController : PublicController
         var guestRoleMappings = customer.CustomerRoleMappings
             .Where(x => !x.IsSystemMapping && x.CustomerRole.SystemName.EqualsNoCase(SystemCustomerRoleNames.Guests))
             .ToArray();
+
         if (guestRoleMappings.Length > 0)
         {
             _db.CustomerRoleMappings.RemoveRange(guestRoleMappings);
@@ -815,6 +839,7 @@ public class IdentityController : PublicController
                 .Where(x => x.SystemName == SystemCustomerRoleNames.Registered)
                 .OrderBy(x => x.Id)
                 .FirstOrDefaultAsync();
+
             if (registeredRole != null)
             {
                 _db.CustomerRoleMappings.Add(new()
@@ -822,6 +847,18 @@ public class IdentityController : PublicController
                     CustomerId = customer.Id,
                     CustomerRoleId = registeredRole.Id
                 });
+
+                // Add customer to an additional role.
+                var roleIdToAdd = _customerSettings.RegisterCustomerRoleId ?? 0;
+                if (roleIdToAdd != 0 && roleIdToAdd != registeredRole.Id)
+                {
+                    var customerRole = await _roleManager.FindByIdAsync(roleIdToAdd);
+                    if (customerRole != null)
+                    {
+                        await _userManager.AddToRoleAsync(customer, customerRole.Name);
+                    }
+                }
+
                 updated = true;
             }
         }

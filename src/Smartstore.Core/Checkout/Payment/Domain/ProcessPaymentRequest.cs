@@ -48,6 +48,11 @@ public partial class ProcessPaymentRequest
     /// </summary>
     public List<int> ShoppingCartItemIds { get; set; } = [];
 
+    /// <summary>
+    /// <c>true</c> if an order is created by the payment provider subsequently because it is missing after a successful payment.
+    /// </summary>
+    public bool IsOrderRecovery { get; set; }
+
     #region UCP (Universal Commerce Protocol)
 
     /// <summary>

@@ -1,23 +1,12 @@
 ﻿@model AddOrderProductModel
 
-@{
-    var primaryCurrencyCode = CommonServices.CurrencyService.PrimaryCurrency.CurrencyCode;
-    var inclTax = T("Admin.Orders.Fields.Edit.InclTax", primaryCurrencyCode);
-    var exclTax = T("Admin.Orders.Fields.Edit.ExclTax", primaryCurrencyCode);
-
-    // TODO: (mg) Very awkward to enter gross, net, and tax amounts without automatic calculation. TBD with MC.
-    // TODO: (mg) Add a TaxConverterTagHelper (see "tax-converter" below).
-    // TODO: (mg) Auto recalculate the total respective unit price fields.
-    // TODO: (mg) In this context, the term 'calculator/calculate' is slightly more accurate than 'converter/convert'.
-}
-
 <div class="adminContent">
     <div class="adminRow">
         <div class="adminTitle">
             <smart-label asp-for="Quantity" />
         </div>
         <div class="adminData">
-            <editor asp-for="Quantity" class="taxcalc-quantity" />
+            <editor asp-for="Quantity" data-tax-field="quantity" />
         </div>
     </div>
     <div class="adminRow">
@@ -25,51 +14,23 @@
             <smart-label asp-for="TaxRate" />
         </div>
         <div class="adminData">
-            <editor asp-for="TaxRate" sm-postfix="%" class="taxcalc-rate" />
+            <editor asp-for="TaxRate" sm-postfix="%" data-tax-field="taxrate" />
         </div>
     </div>
     <div class="adminRow">
         <div class="adminTitle">
             <smart-label asp-for="UnitPriceInclTax" />
         </div>
-        <div class="adminData tax-converter taxcalc-unitprice taxcalc-active">
-            <div class="row g-1 flex-nowrap">
-                <div class="col">
-                    <editor asp-for="UnitPriceInclTax" sm-postfix="@inclTax" class="taxcalc-gross" />
-                </div>
-                <div class="col-auto align-content-center">
-                    <button type="button" 
-                            class="btn btn-sm border-0 shadow-none bg-transparent text-reset p-1 btn-taxcalc-lock"
-                            title="@T("Admin.Common.TaxConversion.Disable")">
-                        <i class="fa fa-lock"></i>
-                    </button>
-                </div>
-                <div class="col">
-                    <editor asp-for="UnitPriceExclTax" sm-postfix="@exclTax" class="taxcalc-net" />
-                </div>
-            </div>
+        <div class="adminData">
+            <tax-pair kind="TaxPairKind.UnitPrice" asp-for-gross="UnitPriceInclTax" asp-for-net="UnitPriceExclTax" />
         </div>
     </div>
     <div class="adminRow">
         <div class="adminTitle">
             <smart-label asp-for="PriceInclTax" />
         </div>
-        <div class="adminData tax-converter taxcalc-total taxcalc-active">
-            <div class="row g-1 flex-nowrap">
-                <div class="col">
-                    <editor asp-for="PriceInclTax" sm-postfix="@inclTax" class="taxcalc-gross" />
-                </div>
-                <div class="col-auto align-content-center">
-                    <button type="button"
-                            class="btn btn-sm border-0 shadow-none bg-transparent text-reset p-1 btn-taxcalc-lock"
-                            title="@T("Admin.Common.TaxConversion.Disable")">
-                        <i class="fa fa-lock"></i>
-                    </button>
-                </div>
-                <div class="col">
-                    <editor asp-for="PriceExclTax" sm-postfix="@exclTax" class="taxcalc-net" />
-                </div>
-            </div>
+        <div class="adminData">
+            <tax-pair kind="TaxPairKind.LineTotal" asp-for-gross="PriceInclTax" asp-for-net="PriceExclTax" />
         </div>
     </div>
 </div>

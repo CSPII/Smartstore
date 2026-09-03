@@ -174,7 +174,7 @@
                                                 <div class="col">
                                                     <div class="has-icon">
                                                         <input asp-for="DbPassword" class="form-control remember" placeholder="@T("DbPassword")" />
-                                                        <button type="button" class="btn-toggle-pwd">
+                                                        <button type="button" class="btn-toggle-pwd" tabindex="-1">
                                                             <i class="far fa-fw fa-eye-slash"></i>
                                                         </button>
                                                         <span class="input-group-icon text-muted"><i class="icm icm-shield" style="line-height: inherit"></i></span>
@@ -318,7 +318,7 @@
         var collationInnerPanel = $('#CollationInnerPanel');
 
         function hide(el, thenShow, callback) {
-            $(el).slideUp(300, "ease-in-out", function () {
+            $(el).slideUp(300, "swing", function () {
                 if (thenShow) {
                     show($(thenShow), callback);
                 }
@@ -329,7 +329,7 @@
         }
 
         function show(el, callback) {
-            $(el).slideDown(300, "ease-in-out", callback);
+            $(el).slideDown(300, "swing", callback);
         }
 
         function toggleDataProvider() {

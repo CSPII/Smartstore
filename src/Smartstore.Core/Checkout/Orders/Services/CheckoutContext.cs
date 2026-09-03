@@ -9,6 +9,8 @@ namespace Smartstore.Core.Checkout.Orders;
 
 public partial class CheckoutContext(ShoppingCart cart, HttpContext httpContext, IUrlHelper urlHelper)
 {
+    private RouteValueDictionary? _routeValues;
+
     public HttpContext HttpContext { get; } = Guard.NotNull(httpContext);
     public IUrlHelper UrlHelper { get; set; } = Guard.NotNull(urlHelper);
 
@@ -18,7 +20,15 @@ public partial class CheckoutContext(ShoppingCart cart, HttpContext httpContext,
     public ShoppingCart Cart { get; } = Guard.NotNull(cart);
 
     public RouteValueDictionary RouteValues
-        => HttpContext.Request.RouteValues;
+    {
+        get => _routeValues ??= HttpContext.Request.RouteValues;
+        set => _routeValues = Guard.NotNull(value);
+    }
+
+    /// <summary>
+    /// An optional value that indicates which parts of the checkout page need to be refreshed.
+    /// </summary>
+    public CheckoutPartial? Parts { get; init; } = null;
 
     /// <summary>
     /// An optional model (usually of a simple type) representing a user selection (e.g. address ID, shipping method ID or payment method system name).
@@ -62,4 +72,14 @@ public partial class CheckoutContext(ShoppingCart cart, HttpContext httpContext,
     /// </summary>
     public string? Action(string? action, string? controller = "Checkout", object? values = null, string? protocol = null)
         => UrlHelper.Action(action, controller, values, protocol);
+}
+
+/// <summary>
+/// Represents parts of a checkout page that needs to be refreshed.
+/// </summary>
+[Flags]
+public enum CheckoutPartial
+{
+    OrderTotals = 1 << 0,
+    PaymentInfo = 1 << 1
 }

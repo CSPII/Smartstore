@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Dynamic;
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Smartstore.Collections;
 using Smartstore.ComponentModel;
@@ -104,7 +105,7 @@ public partial class CatalogHelper
         await PrepareAlsoPurchasedProductsModelAsync(model, product);
 
         // Custom mapping
-        await MapperFactory.MapWithRegisteredMapperAsync(product, model, new { Context = ctx, Quantity = 1 });
+        await MapperFactory.MapWithRegisteredMapperAsync(product, model, BuildMapperParams(ctx, 1));
 
         return model;
     }
@@ -469,7 +470,7 @@ public partial class CatalogHelper
         // Custom mapping
         if (callCustomMapper)
         {
-            await MapperFactory.MapWithRegisteredMapperAsync(product, model, new { Context = ctx, Quantity = selectedQuantity });
+            await MapperFactory.MapWithRegisteredMapperAsync(product, model, BuildMapperParams(ctx, selectedQuantity));
         }
 
         _services.DisplayControl.Announce(product);
@@ -598,7 +599,14 @@ public partial class CatalogHelper
                 CustomData = attribute.CustomData,
                 IsRequired = attribute.IsRequired,
                 AttributeControlType = attribute.AttributeControlType,
-                AllowedFileExtensions = _catalogSettings.FileUploadAllowedExtensions
+                AllowedFileExtensions = _catalogSettings.FileUploadAllowedExtensions,
+
+                // Frontend prototype controls. Set these per attribute while testing the swatch presentation.
+                SwatchSize = SwatchSize.Medium,
+                SwatchShape = SwatchShape.Rounded,
+                SwatchAspectRatio = 1m,
+                ShowValueNameInSwatch = false,
+                ShowPriceInSwatch = false
             };
 
             // Copy queried variant data (entered by customer) to model.
@@ -972,6 +980,7 @@ public partial class CatalogHelper
         model.MetaTitle = product.GetLocalized(x => x.MetaTitle);
         model.ShowManufacturerPartNumber = _catalogSettings.ShowManufacturerPartNumber;
         model.ManufacturerPartNumber = product.ManufacturerPartNumber;
+        model.DurabilityGuaranteeDurationYears = product.DurabilityGuaranteeDurationYears;
         model.ShowDimensions = _catalogSettings.ShowDimensions;
         model.ShowWeight = _catalogSettings.ShowWeight;
         model.ShowGtin = _catalogSettings.ShowGtin;
@@ -1603,5 +1612,13 @@ public partial class CatalogHelper
 
         // Return for chaining
         return file;
+    }
+
+    private static dynamic BuildMapperParams(ProductDetailsModelContext context, int quantity)
+    {
+        dynamic paramObj = new ExpandoObject();
+        paramObj.Context = context;
+        paramObj.Quantity = quantity;
+        return paramObj;
     }
 }

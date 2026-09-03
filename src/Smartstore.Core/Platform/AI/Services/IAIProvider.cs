@@ -1,5 +1,6 @@
 ﻿#nullable enable
 
+using System.Text.Json;
 using Smartstore.Core.AI.Metadata;
 using Smartstore.Core.AI.Prompting;
 using Smartstore.Core.Content.Media;
@@ -10,7 +11,7 @@ namespace Smartstore.Core.AI;
 /// <summary>
 /// Represents an AI provider like ChatGPT.
 /// </summary>
-public partial interface IAIProvider : IProvider
+public partial interface IAIProvider : IProvider, IDisposable, IAsyncDisposable
 {
     /// <summary>
     /// Gets a value indicating whether the provider is active.
@@ -22,6 +23,13 @@ public partial interface IAIProvider : IProvider
     /// Gets the metadata associated with the current AI provider, mapped from metadata.json.
     /// </summary>
     AIMetadata Metadata { get; }
+
+    /// <summary>
+    /// Waits for asynchronous metadata post-processing to complete, if still in progress.
+    /// </summary>
+    /// <param name="timeout">The maximum time to wait for the metadata post-processing to complete.</param>
+    /// <param name="cancelToken">A token to cancel the wait operation.</param>
+    Task WaitForMetadataAsync(TimeSpan? timeout = null, CancellationToken cancelToken = default);
 
     /// <summary>
     /// Gets the local AI models available for the specified topic.
@@ -46,6 +54,24 @@ public partial interface IAIProvider : IProvider
     /// </returns>
     /// <exception cref="AIException">Thrown when an error occurs during the AI conversation.</exception>
     Task<string?> ChatAsync(AIChat chat, CancellationToken cancelToken = default);
+
+    /// <summary>
+    /// Sends the chat to the AI provider, requests a response that conforms to the given <paramref name="schema"/>,
+    /// and deserializes the returned JSON to a strongly typed object of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The reference type to deserialize the JSON response into.</typeparam>
+    /// <param name="chat">The AI chat containing the messages and topic.</param>
+    /// <param name="schema">The response schema the AI must adhere to.</param>
+    /// <param name="jsonOptions">Optional <see cref="JsonSerializerOptions"/> used to deserialize the provider response.</param>
+    /// <returns>
+    /// The deserialized AI response, or <c>null</c> when the provider returns an empty response.
+    /// </returns>
+    /// <exception cref="AIException">Thrown when an error occurs during the AI conversation or when the response cannot be deserialized to <typeparamref name="T"/>.</exception>
+    Task<T?> GetTypedResponseAsync<T>(
+        AIChat chat,
+        AIResponseSchema schema,
+        JsonSerializerOptions? jsonOptions = null,
+        CancellationToken cancelToken = default) where T : class;
 
     /// <summary>
     /// Starts or continues an AI conversation.

@@ -50,10 +50,7 @@ public abstract class SettingModelValidator<TModel, TSetting> : AbstractValidato
             commonContext.PropertyChain,
             _validatorSelector);
 
-        if (validationContext.RootContextData != null)
-        {
-            validationContext.RootContextData.Merge(commonContext.RootContextData, false);
-        }
+        validationContext.RootContextData?.Merge(commonContext.RootContextData, false);
 
         return validationContext;
     }
