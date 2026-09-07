@@ -420,17 +420,13 @@ public class StripeController : ModuleController
                 {
                     var settings = await Services.SettingFactory.LoadSettingsAsync<StripeSettings>(order.StoreId);
 
-                    // OrderTotal is stored in the primary currency.
-                    // CurrencyRate is the historical customer-currency conversion rate stored with the order.
-                    var expectedMoney = _currencyService.CreateMoney(order.OrderTotal * order.CurrencyRate, order.CustomerCurrencyCode);
-                    var expectedAmount = _roundingHelper.ToSmallestCurrencyUnit(expectedMoney);
+                    var orderTotal = _currencyService.ConvertToExchangeRate(
+                        order.OrderTotal,
+                        order.CurrencyRate,
+                        order.CustomerCurrencyCode);
 
-                    var currencyMatches = string.Equals(
-                    paymentIntent.Currency,
-                    order.CustomerCurrencyCode,
-                    StringComparison.OrdinalIgnoreCase);
-
-                    if (currencyMatches && paymentIntent.Amount == expectedAmount)
+                    // Check if full order amount was captured.
+                    if (_roundingHelper.ToSmallestCurrencyUnit(orderTotal) == paymentIntent.Amount)
                     {
                         if (settings.CaptureMethod == "automatic" && order.CanMarkOrderAsPaid())
                         {
@@ -443,14 +439,6 @@ public class StripeController : ModuleController
                     }
                     else
                     {
-                        Logger.Warn(
-                            "Stripe payment mismatch for order {0}. Expected amount {1} {2}, received {3} {4}.",
-                            order.Id,
-                            expectedAmount,
-                            order.CustomerCurrencyCode,
-                            paymentIntent.Amount,
-                            paymentIntent.Currency);
-
                         order.PaymentStatus = PaymentStatus.Pending;
                         await _db.SaveChangesAsync();
                     }
@@ -468,18 +456,32 @@ public class StripeController : ModuleController
 
                 if (order != null)
                 {
-                    decimal convertedAmount = charge.Amount / 100M;
+                    var customerCurrency = _currencyService.CreateMoney(decimal.Zero, order.CustomerCurrencyCode).Currency;
 
-                    if (order.OrderTotal == convertedAmount)
+                    // Stripe amounts use currency-specific integer minor units, e.g. factor 1 for JPY and 100 for EUR.
+                    var factor = _roundingHelper.ToSmallestCurrencyUnit(1M, customerCurrency);
+                    decimal amountInCustomerCurrency = charge.AmountRefunded / (decimal)factor;
+                    var totalRefunded = _roundingHelper.Round(amountInCustomerCurrency / order.CurrencyRate, _currencyService.PrimaryCurrency);
+                    var amountToRefund = Math.Min(totalRefunded - order.RefundedAmount, order.OrderTotal - order.RefundedAmount);
+
+                    if (amountToRefund <= decimal.Zero)
                     {
-                        if (order.CanRefundOffline())
-                        {
-                            await _orderProcessingService.RefundOfflineAsync(order);
-                        }
+                        return Ok();
                     }
-                    else if (order.CanPartiallyRefundOffline(convertedAmount))
+
+                    if (charge.Refunded && order.CanRefundOffline())
                     {
-                        await _orderProcessingService.PartiallyRefundOfflineAsync(order, convertedAmount);
+                        await _orderProcessingService.RefundOfflineAsync(order);
+                    }
+                    else if (order.CanPartiallyRefundOffline(amountToRefund))
+                    {
+                        await _orderProcessingService.PartiallyRefundOfflineAsync(order, amountToRefund);
+
+                        if (charge.Refunded)
+                        {
+                            order.PaymentStatus = PaymentStatus.Refunded;
+                            await _db.SaveChangesAsync();
+                        }
                     }
                 }
             }

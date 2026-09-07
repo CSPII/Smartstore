@@ -135,9 +135,12 @@ public class StripeElementsProvider : PaymentMethodBase, IConfigurable
 
         if (request.IsPartialRefund)
         {
-            var refundAmountInCustomerCurrency = request.AmountToRefund.Amount * request.Order.CurrencyRate;
-            var refundMoney = _currencyService.CreateMoney( refundAmountInCustomerCurrency, request.Order.CustomerCurrencyCode);
-            options.Amount = _roundingHelper.ToSmallestCurrencyUnit(refundMoney);
+            var amountToRefund = _currencyService.ConvertToExchangeRate(
+                request.AmountToRefund.Amount,
+                request.Order.CurrencyRate,
+                request.Order.CustomerCurrencyCode);
+
+            options.Amount = _roundingHelper.ToSmallestCurrencyUnit(amountToRefund);
         }
 
         var service = new RefundService();

@@ -1,7 +1,7 @@
 ﻿Smartstore.Stripe = (function () {
     let elements;
     let stripe;
-    
+
     const paymentRequestButtonId = "stripe-payment-request-button";
     const paymentRequestButtonSelector = "#" + paymentRequestButtonId;
     const paymentElementSelector = "#stripe-payment-element";
@@ -106,7 +106,7 @@
                 }
             });
         },
-        initWalletButtonElement: function (publicApiKey, requestData, isCartPage, apiVersion) {
+        initWalletButtonElement: function (publicApiKey, requestData, isCartPage, apiVersion, currencyMinorUnitFactor) {
             stripe = Stripe(publicApiKey, {
                 apiVersion: apiVersion,
             });
@@ -186,8 +186,8 @@
                             total = $('#CartSummarySubtotal').data('subtotal');
                         }
 
-                        // Convert total to smallest currency unit.
-                        total = total * 100;
+                        // Convert total to the currency-specific integer minor unit expected by Stripe.
+                        total = Math.round(total * currencyMinorUnitFactor);
 
                         // Update payment request.
                         paymentRequest.update({ total: { label: "Updated total", amount: total } });
@@ -196,8 +196,8 @@
             }
             else {
                 EventBroker.subscribe("ajaxcart.updated", function (msg, data) {
-                    // Convert total to smallest currency unit.
-                    var total = data.SubTotalValue * 100;
+                    // Convert total to the currency-specific integer minor unit expected by Stripe.
+                    var total = Math.round(data.SubTotalValue * currencyMinorUnitFactor);
 
                     // Update payment request.
                     paymentRequest.update({ total: { label: "Updated total", amount: total } });
