@@ -121,7 +121,7 @@
                                delete-url="@Url.Action("DeleteDownload", "Download", new { minimalMode, fieldName, downloadId = Model, area = "Admin" })"
                                multi-file="false"
                                media-path="@mediaPath"
-                               type-filter="@(string.Join("|", CatalogSettings.FileUploadAllowedExtensions.Select(x => x.Trim()).ToList()))"
+                               type-filter="@(string.Join(",", CatalogSettings.FileUploadAllowedExtensions.Select(x => "." + x.Trim().TrimStart('.')).ToList()))"
                                has-template-preview="true"
                                display-browse-media-button="true"
                                display-remove-button="hasFile"
